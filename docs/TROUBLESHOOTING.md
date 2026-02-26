@@ -548,8 +548,62 @@ test: {
 
 ---
 
+## Update & Rollback
+
+See [docs/UPDATING.md](UPDATING.md) for the full updater reference.
+
+### "No semver tags found on remote"
+
+**Symptom:** `npm run update` fails at version resolution (exit 20).
+
+**Cause:** No tags on the remote, or git can't reach origin.
+
+**Fix:**
+```bash
+git remote -v              # Verify origin
+git fetch --tags origin    # Pull tags
+git tag -l                 # Confirm tags exist locally
+```
+
+### Update stuck or "Lock acquisition failure" (exit 80)
+
+**Symptom:** Update refuses to start, says another update is running.
+
+**Cause:** A previous update crashed without releasing the lock.
+
+**Fix:**
+```bash
+cat ~/.nerve/updater/nerve-update.lock   # Shows the PID
+ps -p <pid>                               # Check if alive
+rm ~/.nerve/updater/nerve-update.lock     # Remove if stale
+```
+
+### Health check version mismatch (exit 60)
+
+**Symptom:** Update completes build and restart, but health check says wrong version.
+
+**Cause:** The old server process didn't release the port, or systemd hasn't fully restarted.
+
+**Fix:**
+```bash
+systemctl restart nerve
+curl http://127.0.0.1:3080/api/version   # Verify version
+```
+
+### Rollback failed (exit 70)
+
+**Symptom:** Both update and automatic rollback failed. Critical state.
+
+**Fix:** Manual recovery:
+```bash
+cat ~/.nerve/updater/last-good.json       # Get snapshot ref
+git checkout --force <ref>
+npm install && npm run build && npm run build:server
+systemctl restart nerve
+```
+
+---
+
 ## Known Limitations
 
-### Desktop browsers only
-
-Nerve is designed for desktop browsers. There is no mobile-responsive layout yet. On phones and tablets the UI will be unusable or heavily clipped. This is a known gap, tracked in [#107](https://github.com/daggerhashimoto/openclaw-nerve/issues/107).
+None currently tracked.

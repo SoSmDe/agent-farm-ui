@@ -386,6 +386,26 @@ Applied in order in `app.ts`:
 | `services/whisper-local.ts` | Local whisper.cpp STT via `@fugood/whisper.node`. Singleton model context, auto-download from HuggingFace, GPU detection |
 | `services/claude-usage.ts` | Claude Code CLI usage/limits parser via node-pty |
 
+### Updater (`server/lib/updater/`)
+
+Self-update system invoked via `npm run update` (entrypoint: `bin/nerve-update.ts` → `bin-dist/bin/nerve-update.js`).
+
+| File | Purpose |
+|------|---------|
+| `orchestrator.ts` | State machine: lock → preflight → resolve → snapshot → update → build → restart → health → rollback |
+| `preflight.ts` | Validates git, Node.js, npm versions and git repo state |
+| `release-resolver.ts` | Finds latest semver tag via `git ls-remote --tags`, falls back to local tags |
+| `snapshot.ts` | Saves current git ref, version, and `.env` backup to `~/.nerve/updater/` |
+| `installer.ts` | `git fetch + checkout --force`, `npm install`, `npm run build + build:server` |
+| `service-manager.ts` | Auto-detects systemd or launchd, provides restart/status/logs |
+| `health.ts` | Polls `/health` and `/api/version` with exponential backoff (60s deadline) |
+| `rollback.ts` | Restores snapshot ref, clean rebuilds, restarts service |
+| `lock.ts` | PID-based exclusive lock file (`wx` flag) with stale detection |
+| `reporter.ts` | Formatted terminal output with stage progress, colors, and dry-run markers |
+| `types.ts` | Shared types, exit codes, `UpdateError` class |
+
+Compiled separately via `config/tsconfig.bin.json` to avoid changing the server's `rootDir`.
+
 ---
 
 ## Data Flow
@@ -490,6 +510,7 @@ Project references with four configs:
 - `config/tsconfig.node.json` — Vite/build tooling
 - `config/tsconfig.server.json` — Backend (server/) → compiled to `server-dist/`
 - `config/tsconfig.scripts.json` — Setup scripts
+- `config/tsconfig.bin.json` — CLI tools (bin/) → compiled to `bin-dist/`
 
 ---
 
@@ -504,22 +525,18 @@ npm run test:coverage # With V8 coverage
 
 ### Test Files
 
-| Test | Coverage |
-|------|----------|
-| `src/hooks/useWebSocket.test.ts` | WebSocket connection, RPC, reconnection |
-| `src/hooks/useServerEvents.test.ts` | SSE client |
-| `src/features/tts/useTTS.test.ts` | TTS hook behavior |
-| `src/features/voice/useVoiceInput.test.ts` | Voice input |
-| `src/features/voice/audio-feedback.test.ts` | Audio feedback |
-| `src/features/sessions/unreadSessions.test.ts` | Unread tracking |
-| `src/lib/formatting.test.ts` | Message formatting |
-| `src/lib/constants.test.ts` | Constants validation |
-| `src/lib/sanitize.test.ts` | HTML sanitization |
-| `src/lib/voice-prefix.test.ts` | Voice prefix parsing |
-| `server/routes/health.test.ts` | Health endpoint |
-| `server/services/tts-cache.test.ts` | TTS cache LRU/TTL |
-| `server/middleware/rate-limit.test.ts` | Rate limiting |
-| `server/lib/mutex.test.ts` | Async mutex |
+48 test files, 692 tests. Key areas:
+
+| Area | Files | Coverage |
+|------|-------|----------|
+| Server lib | `config`, `device-identity`, `env-file`, `gateway-client`, `mutex`, `voice-language-coverage`, `ws-proxy` | Auth, config resolution, WS proxy relay, device identity signing |
+| Server routes | `auth`, `events`, `files`, `gateway`, `health`, `sessions`, `skills` | API endpoints, error handling, gateway proxy |
+| Server middleware | `auth`, `error-handler`, `rate-limit`, `security-headers` | Request pipeline |
+| Chat operations | `sendMessage`, `streamEventHandler`, `loadHistory`, `mergeRecoveredTail` | Message lifecycle, streaming, history recovery |
+| Client features | `extractCharts`, `extractImages`, `edit-blocks`, `MarkdownRenderer`, `ContextMeter`, `ErrorBoundary`, `sessionTree` | Rendering, parsing, UI components |
+| Hooks | `useAuth`, `useInputHistory`, `useKeyboardShortcuts`, `useServerEvents`, `useTTS` | Client-side state and interaction |
+| Voice/audio | `audio-feedback`, `useVoiceInput`, `voice-prefix` | Voice input, TTS, wake/stop phrase parsing |
+| Utilities | `constants`, `formatting`, `sanitize`, `unreadSessions` | Shared logic |
 
 ### Configuration
 

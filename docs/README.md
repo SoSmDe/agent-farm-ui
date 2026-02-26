@@ -9,6 +9,7 @@ Use this folder as the docs hub for Nerve.
 - [API](./API.md)
 - [Security](./SECURITY.md)
 - [Troubleshooting](./TROUBLESHOOTING.md)
+- [Updating](./UPDATING.md)
 - [Installer Steps](./INSTALLER-STEPS.md)
 - [Agent Markers](./AGENT-MARKERS.md)
 - [Code Review](./CODE_REVIEW.md)

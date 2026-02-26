@@ -241,6 +241,17 @@ TTS_CACHE_TTL_MS=7200000
 TTS_CACHE_MAX=500
 ```
 
+### Updater State
+
+The updater stores state in `~/.nerve/updater/`. These are not configurable via env vars — they're managed automatically by `npm run update`.
+
+| Path | Purpose |
+|------|---------|
+| `~/.nerve/updater/last-good.json` | Snapshot of the last successful state (git ref, version, env hash) |
+| `~/.nerve/updater/last-run.json` | Result metadata from the most recent update attempt |
+| `~/.nerve/updater/snapshots/<ts>/.env` | Timestamped `.env` backups (mode 0600) |
+| `~/.nerve/updater/nerve-update.lock` | PID lock file (prevents concurrent updates) |
+
 ### Development
 
 | Variable | Description |
