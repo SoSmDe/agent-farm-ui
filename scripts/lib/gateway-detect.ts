@@ -146,9 +146,11 @@ export function patchGatewayAllowedOrigins(origin: string): GatewayPatchResult {
   }
 }
 
+const REQUIRED_HTTP_TOOLS = ['cron', 'gateway'] as const;
+
 /**
- * Patch the OpenClaw gateway config to allow the cron tool.
- * Adds 'cron' to gateway.tools.allow (deduped).
+ * Patch the OpenClaw gateway config to allow required HTTP tools.
+ * Adds missing entries in `gateway.tools.allow` (deduped).
  * Returns a result indicating success/failure.
  */
 export function patchGatewayToolsAllow(): GatewayPatchResult {
@@ -166,19 +168,19 @@ export function patchGatewayToolsAllow(): GatewayPatchResult {
     config.gateway = config.gateway || {};
     config.gateway.tools = config.gateway.tools || {};
     const allow = Array.isArray(config.gateway.tools.allow) ? config.gateway.tools.allow : [];
+    const missing = REQUIRED_HTTP_TOOLS.filter(tool => !allow.includes(tool));
 
-    if (allow.includes('cron')) {
+    if (missing.length === 0) {
       result.ok = true;
-      result.message = 'cron already in gateway.tools.allow';
+      result.message = `${REQUIRED_HTTP_TOOLS.join(', ')} already in gateway.tools.allow`;
       return result;
     }
 
-    allow.push('cron');
-    config.gateway.tools.allow = allow;
+    config.gateway.tools.allow = [...allow, ...missing];
 
     writeFileSync(OPENCLAW_CONFIG, JSON.stringify(config, null, 2) + '\n');
     result.ok = true;
-    result.message = 'Added cron to gateway.tools.allow';
+    result.message = `Added ${missing.join(', ')} to gateway.tools.allow`;
     return result;
   } catch (err) {
     result.message = `Failed to patch config: ${err instanceof Error ? err.message : String(err)}`;
@@ -589,7 +591,7 @@ function needsPrePair(gatewayToken?: string): boolean {
 }
 
 /**
- * Detect whether gateway.tools.allow is missing the cron tool.
+ * Detect whether gateway.tools.allow is missing required HTTP tools.
  */
 function needsToolsAllow(): boolean {
   if (!existsSync(OPENCLAW_CONFIG)) return false;
@@ -597,8 +599,8 @@ function needsToolsAllow(): boolean {
   try {
     const raw = readFileSync(OPENCLAW_CONFIG, 'utf-8');
     const config = JSON.parse(raw) as OpenClawConfig;
-    const allow = config.gateway?.tools?.allow || [];
-    return !allow.includes('cron');
+    const allow = Array.isArray(config.gateway?.tools?.allow) ? config.gateway.tools.allow : [];
+    return REQUIRED_HTTP_TOOLS.some(tool => !allow.includes(tool));
   } catch {
     return false;
   }
@@ -654,7 +656,7 @@ export function detectNeededConfigChanges(opts: {
   if (needsToolsAllow()) {
     changes.push({
       id: 'tools-allow',
-      description: 'Allow cron tool on /tools/invoke (needed for cron management)',
+      description: 'Allow cron + gateway tools on /tools/invoke (needed for cron and gateway management)',
       apply: () => {
         const r = patchGatewayToolsAllow();
         return { ok: r.ok, message: r.message, needsRestart: r.ok };
