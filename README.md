@@ -24,7 +24,7 @@ Nerve is a self-hosted web UI for [OpenClaw](https://github.com/openclaw/opencla
 
 ## Why Nerve?
 
-Messaging channels are great for chatting. But you can't watch charts render in real-time, edit your agent's workspace mid-conversation, browse its files, or monitor token spend from a Telegram window. Nerve is the dashboard that gives you the full picture.
+Messaging channels are great for chatting. But you can't watch charts render in real-time, edit your agent's workspace mid-conversation, browse its files, manage tasks on a kanban board, or monitor token spend from a Telegram window. Nerve is the dashboard that gives you the full picture.
 
 <div align="center">
 
@@ -39,6 +39,9 @@ Talk to your agent in 12 languages. Explicit language selection (no flaky auto-d
 
 ### Full workspace visibility
 Your sub-agent sessions, workspace files, memory, config, tools. All visible, all editable, all live. No file hunting, no guessing what it remembers.
+
+### Kanban task board
+Drag-and-drop task management with agent execution, review workflow, and proposal inbox. Create tasks, assign them to your agent, and watch the work happen — all from a visual board.
 
 ### Responsive by default
 Nerve adapts cleanly across desktop, tablet, and mobile, with touch-friendly controls on smaller screens and no core workflow loss.
