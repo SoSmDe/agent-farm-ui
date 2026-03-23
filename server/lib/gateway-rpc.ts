@@ -89,7 +89,12 @@ export function gatewayRpcCall(
         id: randomUUID(),
         method: 'connect',
         params: {
-          client: { id: 'nerve-rpc', mode: 'api' },
+          client: {
+            id: 'nerve-rpc',
+            mode: 'api',
+            version: '1.0.0',
+            platform: process.platform,
+          },
           minProtocol: 1,
           maxProtocol: 1,
           role: 'operator',
