@@ -16,6 +16,7 @@ import { broadcast } from '../routes/events.js';
 import { config } from './config.js';
 import { resolveAgentWorkspace, type AgentWorkspace } from './agent-workspace.js';
 import { isBinary, isExcluded } from './file-utils.js';
+import { isWorkspaceLocal } from './workspace-detect.js';
 
 let rootDirWatcher: FSWatcher | null = null;
 const memoryWatchers = new Map<string, FSWatcher>();
@@ -207,9 +208,23 @@ function startRootWorkspaceWatcher(): void {
 /**
  * Start watching workspace files for changes.
  * Call this during server startup.
+ *
+ * When the workspace is remote (NERVE_WORKSPACE_REMOTE=true or workspace
+ * directory is not locally accessible), skips all file watchers since
+ * there's nothing local to watch.
  */
-export function startFileWatcher(): void {
+export async function startFileWatcher(): Promise<void> {
   stopFileWatcher();
+
+  // Check if the main workspace is local before setting up watchers
+  const mainWorkspace = resolveAgentWorkspace('main');
+  const isLocal = await isWorkspaceLocal(mainWorkspace.workspaceRoot);
+
+  if (!isLocal) {
+    console.log('[file-watcher] Workspace is remote — file watching disabled');
+    return;
+  }
+
   refreshWorkspaceWatchers();
   startRootWorkspaceWatcher();
 
