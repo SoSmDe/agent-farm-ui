@@ -16,13 +16,10 @@ beforeEach(async () => {
 
   // Default mock for RPC spawn helper (tests can override with vi.doMock before buildApp)
   vi.doMock('../lib/kanban-worker-spawn.js', () => ({
-    spawnKanbanWorkerViaRpc: vi.fn(async () => {
-      await new Promise(resolve => setTimeout(resolve, 10));
-      return {
-        parentSessionKey: 'agent:main:main',
-        childSessionKey: 'agent:main:subagent:test',
-      };
-    }),
+    spawnKanbanWorkerViaRpc: vi.fn(async () => ({
+      parentSessionKey: 'agent:main:main',
+      childSessionKey: 'agent:main:subagent:test',
+    })),
   }));
 });
 
@@ -35,7 +32,16 @@ afterEach(async () => {
   }
   vi.useRealTimers();
   vi.restoreAllMocks();
-  await fs.promises.rm(tmpDir, { recursive: true, force: true });
+  await new Promise(resolve => setTimeout(resolve, 50));
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      await fs.promises.rm(tmpDir, { recursive: true, force: true });
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOTEMPTY' || attempt === 4) throw error;
+      await new Promise(resolve => setTimeout(resolve, 25));
+    }
+  }
 });
 
 async function buildApp(options: { invokeGatewayToolMock?: GatewayToolMock } = {}): Promise<Hono> {

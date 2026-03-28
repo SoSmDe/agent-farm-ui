@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { spawnKanbanWorkerViaRpc, type KanbanWorkerSpawnResult } from './kanban-worker-spawn.js';
+import { spawnKanbanWorkerViaRpc } from './kanban-worker-spawn.js';
 import * as gatewayRpc from './gateway-rpc.js';
 
 vi.mock('./gateway-rpc.js', () => ({
