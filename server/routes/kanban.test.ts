@@ -1575,34 +1575,29 @@ describe('POST /api/kanban/tasks/:id/complete — run key integrity', () => {
     expect(latest?.result).toBeUndefined();
   });
 
-  it('completes a run even when the gateway truncates the human-readable label', async () => {
-    const gatewaySessionKey = 'agent:main:subagent:stable-child';
-    let truncatedLabel = 'truncated-label';
-
-    vi.doMock('../lib/kanban-worker-spawn.js', () => ({
-      spawnKanbanWorkerViaRpc: vi.fn(async () => {
-        await new Promise(resolve => setTimeout(resolve, 10));
-        return {
-          parentSessionKey: 'agent:main:main',
-          childSessionKey: gatewaySessionKey,
-          sessionId: gatewaySessionKey,
-        };
-      }),
-    }));
-
-    const invokeGatewayToolMock = vi.fn(async (tool: string) => {
-      if (tool === 'subagents') {
-        return {
-          active: [],
-          recent: [{ label: truncatedLabel, status: 'done', sessionKey: gatewaySessionKey }],
-        };
+  it('polls root session and completes when session is done', async () => {
+    const invokeGatewayToolMock = vi.fn(async (tool: string, args?: Record<string, unknown>) => {
+      if (tool === 'sessions.list') {
+        // Extract sessionKey from poll args and return it as done
+        const sessionKey = args && 'sessionKey' in args && typeof args.sessionKey === 'string'
+          ? args.sessionKey
+          : '';
+        
+        // Simulate the root session completing
+        const sessions = [{
+          sessionKey,
+          agentState: 'idle',
+          busy: false,
+          processing: false,
+        }];
+        return { sessions };
       }
       if (tool === 'sessions_history') {
         return {
           messages: [
             {
               role: 'assistant',
-              content: 'Done\n[kanban:create]{"title":"proposal from truncated label"}[/kanban:create]',
+              content: 'Done\n[kanban:create]{"title":"proposal from root session"}[/kanban:create]',
             },
           ],
         };
@@ -1611,247 +1606,78 @@ describe('POST /api/kanban/tasks/:id/complete — run key integrity', () => {
     });
 
     const app = await buildApp({ invokeGatewayToolMock });
-    const task = await createTask(app, { status: 'todo' });
+    const task = await createTask(app, { status: 'todo', title: 'Test task' });
 
     const execRes = await app.request(`/api/kanban/tasks/${task.id}/execute`, json({}));
     expect(execRes.status).toBe(200);
     const running = await execRes.json() as KanbanTask;
-    truncatedLabel = `${running.run!.sessionKey.slice(0, 12)}…truncated`;
-    expect(truncatedLabel).not.toBe(running.run!.sessionKey);
+    const rootSessionKey = running.run!.sessionKey;
+    
+    // Verify sessionKey was generated (mock returns kanban-root:* format)
+    expect(rootSessionKey).toBeTruthy();
 
+    // Wait for poller to detect completion
     await new Promise((resolve) => setTimeout(resolve, 3_200));
 
+    // Verify sessions.list was called to poll root session
+    const sessionListCalls = (invokeGatewayToolMock as ReturnType<typeof vi.fn>).mock.calls.filter(
+      (call) => call[0] === 'sessions.list'
+    );
+    expect(sessionListCalls.length).toBeGreaterThan(0);
+
+    // Verify sessions_history was called to fetch result
     expect(invokeGatewayToolMock).toHaveBeenCalledWith('sessions_history', {
-      sessionKey: gatewaySessionKey,
+      sessionKey: rootSessionKey,
       limit: 3,
     });
 
+    // Verify task completed
     const tasksRes = await app.request('/api/kanban/tasks');
     const tasks = await tasksRes.json() as { items: KanbanTask[] };
     const completed = tasks.items.find((item) => item.id === task.id);
     expect(completed?.status).toBe('review');
     expect(completed?.run?.status).toBe('done');
-    expect(completed?.run?.sessionKey).toBe(running.run!.sessionKey);
+    expect(completed?.run?.sessionKey).toBe(rootSessionKey);
     expect(completed?.result).toContain('Done');
 
+    // Verify proposal was created from marker
     const proposalsRes = await app.request('/api/kanban/proposals');
     const proposals = await proposalsRes.json() as { proposals: Array<{ payload: Record<string, unknown> }> };
-    expect(proposals.proposals.find((proposal) => proposal.payload.title === 'proposal from truncated label')).toBeDefined();
+    expect(proposals.proposals.find((proposal) => proposal.payload.title === 'proposal from root session')).toBeDefined();
   });
 
-  it('persists spawned stable identifiers and completes via childSessionKey', async () => {
-    const childSessionKey = 'agent:main:subagent:stable-child';
 
-    vi.doMock('../lib/kanban-worker-spawn.js', () => ({
-      spawnKanbanWorkerViaRpc: vi.fn(async () => {
-        await new Promise(resolve => setTimeout(resolve, 10));
-        return {
-          parentSessionKey: 'agent:main:main',
-          childSessionKey,
-          sessionId: childSessionKey,
-        };
-      }),
-    }));
-
-    const invokeGatewayToolMock = vi.fn(async (tool: string) => {
-      if (tool === 'subagents') {
-        return {
-          active: [],
-          recent: [{ label: 'totally-different-label', status: 'done', sessionKey: childSessionKey }],
-        };
-      }
-      if (tool === 'sessions_history') {
-        return {
-          messages: [
-            {
-              role: 'assistant',
-              content: 'Done via stable identifiers',
-            },
-          ],
-        };
-      }
-      return {};
-    });
-
-    const app = await buildApp({ invokeGatewayToolMock });
-    const task = await createTask(app, { status: 'todo' });
-
-    const execRes = await app.request(`/api/kanban/tasks/${task.id}/execute`, json({}));
-    expect(execRes.status).toBe(200);
-    const running = await execRes.json() as KanbanTask;
-
-    await new Promise((resolve) => setTimeout(resolve, 3_200));
-
-    // Verify sessions_history was called (may be after subagents poll)
-    const historyCalls = (invokeGatewayToolMock as ReturnType<typeof vi.fn>).mock.calls.filter(
-      (call) => call[0] === 'sessions_history'
-    );
-    expect(historyCalls.length).toBeGreaterThan(0);
-    expect(historyCalls[0]).toEqual(['sessions_history', {
-      sessionKey: childSessionKey,
-      limit: 3,
-    }]);
-
-    const tasksRes = await app.request('/api/kanban/tasks');
-    const tasks = await tasksRes.json() as { items: KanbanTask[] };
-    const completed = tasks.items.find((item) => item.id === task.id);
-    expect(completed?.status).toBe('review');
-    expect(completed?.run?.status).toBe('done');
-    expect(completed?.run?.sessionKey).toBe(running.run?.sessionKey);
-    expect(completed?.run?.childSessionKey).toBe(childSessionKey);
-    expect(completed?.run?.sessionId).toBe(childSessionKey);
-    expect(completed?.result).toContain('Done via stable identifiers');
-  });
-
-  it('completes when sessions_spawn returns sessionId instead of childSessionKey', async () => {
-    const childSessionKey = 'agent:main:subagent:alias-session-id';
-
-    vi.doMock('../lib/kanban-worker-spawn.js', () => ({
-      spawnKanbanWorkerViaRpc: vi.fn(async () => {
-        await new Promise(resolve => setTimeout(resolve, 10));
-        return {
-          parentSessionKey: 'agent:main:main',
-          sessionId: childSessionKey,
-        };
-      }),
-    }));
-
-    const invokeGatewayToolMock = vi.fn(async (tool: string) => {
-      if (tool === 'subagents') {
-        return {
-          active: [],
-          recent: [{ label: 'totally-different-label', status: 'done', sessionId: childSessionKey }],
-        };
-      }
-      if (tool === 'sessions_history') {
-        return {
-          messages: [
-            {
-              role: 'assistant',
-              content: 'Done via sessionId alias',
-            },
-          ],
-        };
-      }
-      return {};
-    });
-
-    const app = await buildApp({ invokeGatewayToolMock });
-    const task = await createTask(app, { status: 'todo' });
-
-    const execRes = await app.request(`/api/kanban/tasks/${task.id}/execute`, json({}));
-    expect(execRes.status).toBe(200);
-
-    await new Promise((resolve) => setTimeout(resolve, 3_200));
-
-    expect(invokeGatewayToolMock).toHaveBeenCalledWith('sessions_history', {
-      sessionKey: childSessionKey,
-      limit: 3,
-    });
-
-    const tasksRes = await app.request('/api/kanban/tasks');
-    const tasks = await tasksRes.json() as { items: KanbanTask[] };
-    const completed = tasks.items.find((item) => item.id === task.id);
-    expect(completed?.status).toBe('review');
-    expect(completed?.run?.status).toBe('done');
-    expect(completed?.run?.childSessionKey).toBe(childSessionKey);
-    expect(completed?.run?.sessionId).toBe(childSessionKey);
-    expect(completed?.result).toContain('Done via sessionId alias');
-  });
-
-  it('falls back to label correlation when spawn discovery returns no child session key', async () => {
-    const gatewaySessionKey = 'agent:main:subagent:label-only-child';
-
-    vi.doMock('../lib/kanban-worker-spawn.js', () => ({
-      spawnKanbanWorkerViaRpc: vi.fn(async () => {
-        await new Promise(resolve => setTimeout(resolve, 10));
-        return {
-          parentSessionKey: 'agent:main:main',
-        };
-      }),
-    }));
-
-    const invokeGatewayToolMock = vi.fn(async (tool: string) => {
-      if (tool === 'subagents') {
-        return {
-          active: [],
-          recent: [{
-            label: runningTaskKey,
-            status: 'done',
-            sessionKey: gatewaySessionKey,
-          }],
-        };
-      }
-      if (tool === 'sessions_history') {
-        return {
-          messages: [
-            {
-              role: 'assistant',
-              content: 'Done via label correlation fallback',
-            },
-          ],
-        };
-      }
-      return {};
-    });
-
-    const app = await buildApp({ invokeGatewayToolMock });
-    const task = await createTask(app, { status: 'todo' });
-
-    let runningTaskKey = '';
-    const execRes = await app.request(`/api/kanban/tasks/${task.id}/execute`, json({}));
-    expect(execRes.status).toBe(200);
-    const running = await execRes.json() as KanbanTask;
-    expect(running.status).toBe('in-progress');
-    runningTaskKey = running.run!.sessionKey;
-
-    const immediateTasksRes = await app.request('/api/kanban/tasks');
-    const immediateTasks = await immediateTasksRes.json() as { items: KanbanTask[] };
-    const immediate = immediateTasks.items.find((item) => item.id === task.id);
-    expect(immediate?.run?.childSessionKey).toBeUndefined();
-    expect(immediate?.run?.sessionId).toBeUndefined();
-
-    await new Promise((resolve) => setTimeout(resolve, 3_200));
-
-    expect(invokeGatewayToolMock).toHaveBeenCalledWith('sessions_history', {
-      sessionKey: gatewaySessionKey,
-      limit: 3,
-    });
-
-    const tasksRes = await app.request('/api/kanban/tasks');
-    const tasks = await tasksRes.json() as { items: KanbanTask[] };
-    const completed = tasks.items.find((item) => item.id === task.id);
-    expect(completed?.status).toBe('review');
-    expect(completed?.run?.status).toBe('done');
-    expect(completed?.run?.sessionKey).toBe(running.run?.sessionKey);
-    expect(completed?.run?.childSessionKey).toBeUndefined();
-    expect(completed?.run?.sessionId).toBeUndefined();
-    expect(completed?.result).toContain('Done via label correlation fallback');
-  });
 
   it('ignores late stale poller completion from run 1 after run 2 is active', async () => {
     vi.useFakeTimers();
 
-    const runState: { run1Label?: string } = {};
+    const runState: { run1SessionKey?: string; run2SessionKey?: string } = {};
 
-    vi.doMock('../lib/kanban-worker-spawn.js', () => ({
-      spawnKanbanWorkerViaRpc: vi.fn(async () => {
-        await new Promise(resolve => setTimeout(resolve, 10));
-        return {
-          parentSessionKey: 'agent:main:main',
-          childSessionKey: 'gateway-session',
-        };
-      }),
-    }));
-
-    const invokeGatewayToolMock: GatewayToolMock = vi.fn(async (tool) => {
-      if (tool === 'subagents') {
-        return {
-          active: [],
-          recent: runState.run1Label
-            ? [{ label: runState.run1Label, status: 'done', sessionKey: 'gateway-run-1' }]
-            : [],
-        };
+    const invokeGatewayToolMock: GatewayToolMock = vi.fn(async (tool, args) => {
+      if (tool === 'sessions.list') {
+        // First run's session reports as done (stale poller)
+        if (runState.run1SessionKey && args && 'sessionKey' in args && args.sessionKey === runState.run1SessionKey) {
+          return {
+            sessions: [{
+              sessionKey: runState.run1SessionKey,
+              agentState: 'idle',
+              busy: false,
+              processing: false,
+            }],
+          };
+        }
+        // Second run is still active
+        if (runState.run2SessionKey && args && 'sessionKey' in args && args.sessionKey === runState.run2SessionKey) {
+          return {
+            sessions: [{
+              sessionKey: runState.run2SessionKey,
+              agentState: 'busy',
+              busy: true,
+              processing: true,
+            }],
+          };
+        }
+        return { sessions: [] };
       }
       if (tool === 'sessions_history') {
         return {
@@ -1872,7 +1698,7 @@ describe('POST /api/kanban/tasks/:id/complete — run key integrity', () => {
     const run1Res = await app.request(`/api/kanban/tasks/${created.id}/execute`, json({}));
     expect(run1Res.status).toBe(200);
     const run1 = await run1Res.json() as KanbanTask;
-    runState.run1Label = run1.run!.sessionKey;
+    runState.run1SessionKey = run1.run!.sessionKey;
 
     const abortRes = await app.request(`/api/kanban/tasks/${created.id}/abort`, json({ note: 'rerun' }));
     expect(abortRes.status).toBe(200);
@@ -1882,13 +1708,16 @@ describe('POST /api/kanban/tasks/:id/complete — run key integrity', () => {
     const run2Res = await app.request(`/api/kanban/tasks/${created.id}/execute`, json({}));
     expect(run2Res.status).toBe(200);
     const run2 = await run2Res.json() as KanbanTask;
+    runState.run2SessionKey = run2.run!.sessionKey;
 
     await vi.advanceTimersByTimeAsync(3_000);
 
+    // Stale poller from run 1 should not create proposals
     const proposalsRes = await app.request('/api/kanban/proposals');
     const proposals = await proposalsRes.json() as { proposals: Array<{ payload: Record<string, unknown> }> };
     expect(proposals.proposals.find((proposal) => proposal.payload.title === 'stale rerun proposal')).toBeUndefined();
 
+    // Task should still be on run 2
     const tasksRes = await app.request('/api/kanban/tasks');
     const tasks = await tasksRes.json() as { items: KanbanTask[] };
     const latest = tasks.items.find((item) => item.id === created.id);

@@ -76,30 +76,10 @@ export function cleanupKanbanPollers(): void {
 
 interface KanbanRunIdentity {
   correlationKey: string;
-  childSessionKey?: string;
   runId?: string;
 }
 
-function findGatewayRunMatch(
-  sessions: Array<Record<string, unknown>>,
-  identity: KanbanRunIdentity,
-): Record<string, unknown> | undefined {
-  if (identity.childSessionKey) {
-    const byChildSessionKey = sessions.find((session) => (
-      String(session.childSessionKey ?? session.sessionKey ?? session.sessionId ?? '') === identity.childSessionKey
-    ));
-    if (byChildSessionKey) return byChildSessionKey;
-  }
-
-  if (identity.runId) {
-    const byRunId = sessions.find((session) => String(session.runId ?? '') === identity.runId);
-    if (byRunId) return byRunId;
-  }
-
-  return sessions.find((session) => String(session.label ?? '') === identity.correlationKey);
-}
-
-/** Poll gateway subagents for a kanban run until it finishes, then complete the run. */
+/** Poll root session state until run finishes, then complete the run. */
 function pollSessionCompletion(
   store: ReturnType<typeof getKanbanStore>,
   taskId: string,
@@ -129,57 +109,48 @@ function pollSessionCompletion(
         return; // task was moved, aborted, or rerun under a newer session key
       }
 
-      const raw = await invokeGatewayTool('subagents', { action: 'list', recentMinutes: 120 });
+      // Poll sessions.list for the root session
+      const raw = await invokeGatewayTool('sessions.list', { sessionKey: identity.correlationKey });
       const parsed = parseGatewayResponse(raw);
 
-      // subagents list returns { active: [...], recent: [...] }
-      const active = (parsed.active ?? []) as Array<Record<string, unknown>>;
-      const recent = (parsed.recent ?? []) as Array<Record<string, unknown>>;
-      const all = [...active, ...recent];
+      const sessions = (parsed.sessions ?? []) as Array<Record<string, unknown>>;
+      const session = sessions.find(s => s.sessionKey === identity.correlationKey);
 
-      const match = findGatewayRunMatch(all, identity);
-
-      if (!match) {
-        // Not found yet -- may not have registered, keep trying
+      if (!session) {
+        // Session not found yet -- may not have registered, keep trying
         trackTimeout(poll, intervalMs);
         return;
       }
 
-      const status = match.status as string;
-      const childSessionKey = typeof match.childSessionKey === 'string'
-        ? match.childSessionKey
-        : typeof match.sessionKey === 'string'
-          ? match.sessionKey
-          : typeof match.sessionId === 'string'
-            ? match.sessionId
-            : identity.childSessionKey;
+      // Check if session is idle (done processing)
+      const agentState = session.agentState as string | undefined;
+      const busy = session.busy as boolean | undefined;
+      const processing = session.processing as boolean | undefined;
 
-      if (status === 'done') {
+      const isDone = agentState === 'idle' && !busy && !processing;
+
+      if (isDone) {
         // Fetch session history to get the result text
         let resultText = 'Completed (no result text)';
-        if (!childSessionKey) {
-          console.warn(`[kanban] Run ${identity.correlationKey} completed without a child session key`);
-        } else {
-          try {
-            const histRaw = await invokeGatewayTool('sessions_history', {
-              sessionKey: childSessionKey,
-              limit: 3,
-            });
-            const histParsed = parseGatewayResponse(histRaw);
-            const messages = (histParsed.messages ?? []) as Array<Record<string, unknown>>;
-            const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
-            if (lastAssistant) {
-              const content = lastAssistant.content;
-              if (typeof content === 'string') {
-                resultText = content;
-              } else if (Array.isArray(content)) {
-                const textPart = (content as Array<Record<string, unknown>>).find((p) => p.type === 'text');
-                if (textPart && typeof textPart.text === 'string') resultText = textPart.text;
-              }
+        try {
+          const histRaw = await invokeGatewayTool('sessions_history', {
+            sessionKey: identity.correlationKey,
+            limit: 3,
+          });
+          const histParsed = parseGatewayResponse(histRaw);
+          const messages = (histParsed.messages ?? []) as Array<Record<string, unknown>>;
+          const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
+          if (lastAssistant) {
+            const content = lastAssistant.content;
+            if (typeof content === 'string') {
+              resultText = content;
+            } else if (Array.isArray(content)) {
+              const textPart = (content as Array<Record<string, unknown>>).find((p) => p.type === 'text');
+              if (textPart && typeof textPart.text === 'string') resultText = textPart.text;
             }
-          } catch (err) {
-            console.warn(`[kanban] Could not fetch history for ${identity.correlationKey}:`, err);
           }
+        } catch (err) {
+          console.warn(`[kanban] Could not fetch history for ${identity.correlationKey}:`, err);
         }
 
         const markers = parseKanbanMarkers(resultText);
@@ -208,18 +179,15 @@ function pollSessionCompletion(
         return;
       }
 
+      // Session still active -- check for errors
+      const status = session.status as string | undefined;
       if (status === 'error' || status === 'failed') {
-        const errorMsg = (match.error as string) || 'Agent session failed';
+        const errorMsg = (session.error as string) || 'Session failed';
         await store.completeRun(taskId, identity.correlationKey, undefined, errorMsg).catch(() => {});
         return;
       }
 
-      if (status === 'running') {
-        trackTimeout(poll, intervalMs);
-        return;
-      }
-
-      // Unknown status -- keep polling
+      // Still running -- continue polling
       trackTimeout(poll, intervalMs);
     } catch (err) {
       console.error(`[kanban] Poll error for task ${taskId}:`, err);
@@ -842,15 +810,21 @@ app.post('/api/kanban/tasks/:id/execute', rateLimitGeneral, async (c) => {
       console.error(`[kanban] Failed to launch root session for task ${id}:`, err);
       // Generate a temporary sessionKey for the failed run
       const failedSessionKey = `kb-failed-${Date.now()}`;
-      const task = await store.executeTask(id, parsed.data, 'operator', { sessionKey: failedSessionKey });
+      const task = await store.executeTask(
+        id,
+        { ...parsed.data, sessionKey: failedSessionKey },
+        'operator',
+      );
       await store.completeRun(id, failedSessionKey, undefined, `Spawn failed: ${errorMessage}`);
       return c.json(task);
     }
 
     // Call executeTask with the root sessionKey from the helper
-    const task = await store.executeTask(id, parsed.data, 'operator', {
-      sessionKey: launchResult.sessionKey,
-    });
+    const task = await store.executeTask(
+      id,
+      { ...parsed.data, sessionKey: launchResult.sessionKey },
+      'operator',
+    );
 
     // Fire-and-forget: attach runId if returned, then poll for completion
     (async () => {
