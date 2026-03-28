@@ -29,6 +29,14 @@ function isTopLevelAgentSessionKey(sessionKey: string): boolean {
   return ROOT_AGENT_RE.test(sessionKey);
 }
 
+function getSessionKey(session: SessionListEntry): string {
+  return session.key ?? session.sessionKey ?? '';
+}
+
+function getSessionId(session: SessionListEntry): string | undefined {
+  return session.id ?? session.sessionId;
+}
+
 /**
  * Check if a session key is a subagent session.
  * Equivalent to frontend `isSubagentSessionKey()`.
@@ -65,8 +73,12 @@ function isRootChildSession(sessionKey: string, rootSessionKey: string): boolean
 // ── Types ────────────────────────────────────────────────────────────
 
 interface SessionListEntry {
-  id: string;
-  key: string;
+  id?: string;
+  sessionId?: string;
+  key?: string;
+  sessionKey?: string;
+  label?: string;
+  parentId?: string;
   agentName?: string;
   rootAgentId?: string;
 }
@@ -126,17 +138,17 @@ export async function spawnKanbanWorkerViaRpc(params: {
   // 1. Get pre-spawn session list to establish baseline
   const preSpawnResponse = await gatewayRpcCall('sessions.list', {}) as SessionsListResponse;
   const preSpawnSessions = preSpawnResponse.sessions ?? [];
-  const preSpawnKeys = new Set(preSpawnSessions.map(s => s.key));
+  const preSpawnKeys = new Set(preSpawnSessions.map((session) => getSessionKey(session)).filter(Boolean));
 
   // 2. Find parent session: prefer agent:main:main, fallback to another top-level root
   let parentSessionKey: string | undefined;
-  const mainSession = preSpawnSessions.find(s => s.key === 'agent:main:main');
+  const mainSession = preSpawnSessions.find((session) => getSessionKey(session) === 'agent:main:main');
   if (mainSession) {
     parentSessionKey = 'agent:main:main';
   } else {
-    const otherRoot = preSpawnSessions.find(s => isTopLevelAgentSessionKey(s.key));
+    const otherRoot = preSpawnSessions.find((session) => isTopLevelAgentSessionKey(getSessionKey(session)));
     if (otherRoot) {
-      parentSessionKey = otherRoot.key;
+      parentSessionKey = getSessionKey(otherRoot);
     }
   }
 
@@ -167,19 +179,27 @@ export async function spawnKanbanWorkerViaRpc(params: {
       const postSpawnResponse = await gatewayRpcCall('sessions.list', {}) as SessionsListResponse;
       const postSpawnSessions = postSpawnResponse.sessions ?? [];
 
-      const newChild = postSpawnSessions.find((session) => {
-        return (
-          isSubagentSessionKey(session.key) &&
-          isRootChildSession(session.key, parentSessionKey!) &&
-          !preSpawnKeys.has(session.key)
-        );
+      const candidates = postSpawnSessions.filter((session) => {
+        const sessionKey = getSessionKey(session);
+        if (!sessionKey || preSpawnKeys.has(sessionKey) || !isSubagentSessionKey(sessionKey)) return false;
+        if (session.parentId) return session.parentId === parentSessionKey;
+        return isRootChildSession(sessionKey, parentSessionKey!);
       });
 
-      if (newChild) {
+      const labelMatches = candidates.filter((session) => session.label === params.label);
+      const uniquelyMatchedChild = labelMatches.length === 1
+        ? labelMatches[0]
+        : labelMatches.length > 1
+          ? undefined
+          : candidates.length === 1 && !candidates[0].label
+            ? candidates[0]
+            : undefined;
+
+      if (uniquelyMatchedChild) {
         return {
           parentSessionKey,
-          childSessionKey: newChild.key,
-          sessionId: newChild.id,
+          childSessionKey: getSessionKey(uniquelyMatchedChild),
+          sessionId: getSessionId(uniquelyMatchedChild),
         };
       }
     } catch {

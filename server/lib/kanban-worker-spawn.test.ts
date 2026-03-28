@@ -125,6 +125,78 @@ describe('kanban-worker-spawn', () => {
       expect(result.sessionId).toBe('sess-child');
     });
 
+    it('should prefer the uniquely label-matched child when concurrent spawns appear under the same root', async () => {
+      let callCount = 0;
+      mockGatewayRpcCall.mockImplementation(async (method: string) => {
+        if (method === 'sessions.list') {
+          callCount++;
+          if (callCount === 1) {
+            return {
+              sessions: [
+                { id: 'sess-main', key: 'agent:main:main', agentName: 'main', rootAgentId: 'main' },
+              ],
+            };
+          }
+          return {
+            sessions: [
+              { id: 'sess-main', key: 'agent:main:main', agentName: 'main', rootAgentId: 'main' },
+              { id: 'sess-other', key: 'agent:main:subagent:other', label: 'other-worker', agentName: 'main', rootAgentId: 'main' },
+              { id: 'sess-target', key: 'agent:main:subagent:target', label: 'test-worker', agentName: 'main', rootAgentId: 'main' },
+            ],
+          };
+        }
+        if (method === 'chat.send') {
+          return { ok: true };
+        }
+        return {};
+      });
+
+      const result = await spawnKanbanWorkerViaRpc({
+        label: 'test-worker',
+        task: 'Test task',
+      });
+
+      expect(result.parentSessionKey).toBe('agent:main:main');
+      expect(result.childSessionKey).toBe('agent:main:subagent:target');
+      expect(result.sessionId).toBe('sess-target');
+    });
+
+    it('should leave childSessionKey unset when concurrent discovery is ambiguous', async () => {
+      let callCount = 0;
+      mockGatewayRpcCall.mockImplementation(async (method: string) => {
+        if (method === 'sessions.list') {
+          callCount++;
+          if (callCount === 1) {
+            return {
+              sessions: [
+                { id: 'sess-main', key: 'agent:main:main', agentName: 'main', rootAgentId: 'main' },
+              ],
+            };
+          }
+          return {
+            sessions: [
+              { id: 'sess-main', key: 'agent:main:main', agentName: 'main', rootAgentId: 'main' },
+              { id: 'sess-a', key: 'agent:main:subagent:a', agentName: 'main', rootAgentId: 'main' },
+              { id: 'sess-b', key: 'agent:main:subagent:b', agentName: 'main', rootAgentId: 'main' },
+            ],
+          };
+        }
+        if (method === 'chat.send') {
+          return { ok: true };
+        }
+        return {};
+      });
+
+      const result = await spawnKanbanWorkerViaRpc({
+        label: 'test-worker',
+        task: 'Test task',
+      });
+
+      expect(result.parentSessionKey).toBe('agent:main:main');
+      expect(result.childSessionKey).toBeUndefined();
+      expect(result.sessionId).toBeUndefined();
+    }, 10000);
+
     it('should degrade cleanly when discovery times out', async () => {
       mockGatewayRpcCall.mockImplementation(async (method: string) => {
         if (method === 'sessions.list') {

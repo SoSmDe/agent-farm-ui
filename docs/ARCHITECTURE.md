@@ -571,7 +571,7 @@ This prevents stale overwrites from concurrent editors (drag-and-drop, API clien
        +-- attach discovered childSessionKey/sessionId when available
        +-- fire-and-forget from the HTTP handler
 
-2. pollSessionCompletion()    -> polls gateway subagents every 5s (max 360 attempts / 30 min)
+2. pollSessionCompletion()    -> polls gateway subagents every 5s (max 720 attempts / 60 min)
    +-- invokeGatewayTool('subagents', { action: 'list' })
    +-- prefer stable childSessionKey / runId matches
    +-- fall back to the human-readable run label when discovery did not return stable ids
