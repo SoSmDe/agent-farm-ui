@@ -565,12 +565,16 @@ This prevents stale overwrites from concurrent editors (drag-and-drop, API clien
 ```
 1. POST /api/kanban/tasks/:id/execute
    +-- store.executeTask()    -> status = in-progress, run.status = running
-   +-- invokeGatewayTool('sessions_spawn', { label: 'kanban-<id>', ... })
-       +-- fire-and-forget
+   +-- spawnKanbanWorkerViaRpc({ label: runSessionKey, ... })
+       +-- gatewayRpcCall('chat.send', { sessionKey: <top-level-root>, message: '[spawn-subagent]...' })
+       +-- poll gatewayRpcCall('sessions.list') for the new child session
+       +-- attach discovered childSessionKey/sessionId when available
+       +-- fire-and-forget from the HTTP handler
 
 2. pollSessionCompletion()    -> polls gateway subagents every 5s (max 360 attempts / 30 min)
    +-- invokeGatewayTool('subagents', { action: 'list' })
-   +-- match by label
+   +-- prefer stable childSessionKey / runId matches
+   +-- fall back to the human-readable run label when discovery did not return stable ids
    +-- if status=done:
        |   fetch session history (last 3 messages)
        |   parseKanbanMarkers(resultText) -> create proposals
