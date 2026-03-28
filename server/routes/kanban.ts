@@ -3,6 +3,7 @@
  *
  * GET    /api/kanban/tasks          — List tasks (with filters + pagination)
  * POST   /api/kanban/tasks          — Create a task
+ * GET    /api/kanban/tasks/:id      — Get a task by id
  * PATCH  /api/kanban/tasks/:id      — Update a task (CAS versioned)
  * DELETE /api/kanban/tasks/:id      — Delete a task
  * POST   /api/kanban/tasks/:id/reorder — Reorder / move a task
@@ -407,6 +408,22 @@ app.get('/api/kanban/tasks', rateLimitGeneral, async (c) => {
 
   const result = await store.listTasks({ status, priority, assignee, label, q, limit, offset });
   return c.json(result);
+});
+
+// GET /api/kanban/tasks/:id
+app.get('/api/kanban/tasks/:id', rateLimitGeneral, async (c) => {
+  const store = getKanbanStore();
+  const id = c.req.param('id');
+
+  try {
+    const task = await store.getTask(id);
+    return c.json(task);
+  } catch (err) {
+    if (err instanceof TaskNotFoundError) {
+      return c.json({ error: 'not_found' }, 404);
+    }
+    throw err;
+  }
 });
 
 // POST /api/kanban/tasks

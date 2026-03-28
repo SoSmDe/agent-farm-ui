@@ -186,6 +186,41 @@ describe('GET /api/kanban/tasks', () => {
   });
 });
 
+// ── GET /api/kanban/tasks/:id ───────────────────────────────────────
+
+describe('GET /api/kanban/tasks/:id', () => {
+  it('returns a task by path param id', async () => {
+    const app = await buildApp();
+    const task = await createTask(app, { title: 'Route lookup task' });
+
+    const res = await app.request(`/api/kanban/tasks/${task.id}`);
+    expect(res.status).toBe(200);
+    const body = await res.json() as KanbanTask;
+    expect(body.id).toBe(task.id);
+    expect(body.title).toBe('Route lookup task');
+  });
+
+  it('returns 404 for missing task id', async () => {
+    const app = await buildApp();
+
+    const res = await app.request('/api/kanban/tasks/missing');
+    expect(res.status).toBe(404);
+    const body = await res.json() as { error: string };
+    expect(body.error).toBe('not_found');
+  });
+
+  it('returns 500 when getTask throws a non-not-found error', async () => {
+    const app = await buildApp();
+    const storeModule = await import('../lib/kanban-store.js');
+    const store = storeModule.getKanbanStore();
+    vi.spyOn(store, 'getTask').mockRejectedValueOnce(new Error('boom'));
+
+    const res = await app.request('/api/kanban/tasks/exploded');
+    expect(res.status).toBe(500);
+    expect(await res.text()).toContain('Internal Server Error');
+  });
+});
+
 // ── POST /api/kanban/tasks ───────────────────────────────────────────
 
 describe('POST /api/kanban/tasks', () => {
