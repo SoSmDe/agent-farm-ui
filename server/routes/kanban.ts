@@ -25,6 +25,7 @@ import {
   ProposalNotFoundError,
   ProposalAlreadyResolvedError,
 } from '../lib/kanban-store.js';
+import { InvalidKanbanAssigneeError } from '../lib/kanban-assignee.js';
 import { invokeGatewayTool } from '../lib/gateway-client.js';
 import { gatewayRpcCall } from '../lib/gateway-rpc.js';
 import { withMutex } from '../lib/mutex.js';
@@ -987,6 +988,12 @@ function handleInvalidTaskStatusError(c: Context, err: unknown) {
       error: 'validation_error',
       details: `status: Unknown status "${err.status}"`,
       allowed: err.allowed,
+    }, 400);
+  }
+  if (err instanceof InvalidKanbanAssigneeError) {
+    return c.json({
+      error: 'validation_error',
+      details: err.message,
     }, 400);
   }
   if (err instanceof InvalidBoardConfigError) {

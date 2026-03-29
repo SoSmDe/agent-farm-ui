@@ -337,6 +337,31 @@ describe('POST /api/kanban/tasks', () => {
     expect(task.createdBy).toBe('agent:codex');
   });
 
+  it('canonicalizes assignee in the response', async () => {
+    const app = await buildApp();
+    const res = await app.request('/api/kanban/tasks', json({
+      title: 'Assigned task',
+      createdBy: 'operator',
+      assignee: 'agent:designer:main',
+    }));
+    expect(res.status).toBe(201);
+    const task = await res.json() as KanbanTask;
+    expect(task.assignee).toBe('agent:designer');
+  });
+
+  it('returns 400 for invalid root assignee', async () => {
+    const app = await buildApp();
+    const res = await app.request('/api/kanban/tasks', json({
+      title: 'Bad assignee',
+      createdBy: 'operator',
+      assignee: 'agent:main',
+    }));
+    expect(res.status).toBe(400);
+    const body = await res.json() as { error: string; details: string };
+    expect(body.error).toBe('validation_error');
+    expect(body.details).toBe('Invalid Kanban assignee: agent:main');
+  });
+
   it('returns 400 for invalid status', async () => {
     const app = await buildApp();
     const res = await app.request('/api/kanban/tasks', json({
@@ -476,6 +501,19 @@ describe('PATCH /api/kanban/tasks/:id', () => {
     const body = await listRes.json() as { items: KanbanTask[] };
     const fresh = body.items.find((item) => item.id === task.id);
     expect(fresh?.run).toBeUndefined();
+  });
+
+  it('canonicalizes assignee in the response', async () => {
+    const app = await buildApp();
+    const task = await createTask(app, { assignee: 'agent:codex' });
+
+    const res = await app.request(`/api/kanban/tasks/${task.id}`, jsonPatch({
+      version: task.version,
+      assignee: 'agent:designer:subagent:child',
+    }));
+    expect(res.status).toBe(200);
+    const updated = await res.json() as KanbanTask;
+    expect(updated.assignee).toBe('agent:designer');
   });
 });
 
@@ -1324,6 +1362,18 @@ describe('POST /api/kanban/proposals', () => {
     expect(body.type).toBe('create');
     expect(body.status).toBe('pending');
     expect(body.id).toBeTruthy();
+  });
+
+  it('canonicalizes assignee in the returned payload', async () => {
+    const app = await buildApp();
+    const res = await app.request('/api/kanban/proposals', json({
+      type: 'create',
+      payload: { title: 'New task', assignee: 'agent:designer:main' },
+      proposedBy: 'agent:codex',
+    }));
+    expect(res.status).toBe(201);
+    const body = await res.json() as { payload: { assignee?: string } };
+    expect(body.payload.assignee).toBe('agent:designer');
   });
 
   it('creates an update proposal', async () => {
