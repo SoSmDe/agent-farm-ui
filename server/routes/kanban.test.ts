@@ -134,6 +134,23 @@ async function createTask(app: Hono, overrides: Record<string, unknown> = {}): P
   return res.json() as Promise<KanbanTask>;
 }
 
+async function overwriteStoredTaskAssignee(taskId: string, assignee?: string | null): Promise<void> {
+  const storePath = path.join(tmpDir, 'tasks.json');
+  const raw = JSON.parse(await fs.promises.readFile(storePath, 'utf8')) as {
+    tasks: Array<Record<string, unknown>>;
+  };
+  const task = raw.tasks.find((item) => item.id === taskId);
+  if (!task) throw new Error(`Task not found in raw fixture: ${taskId}`);
+
+  if (assignee == null) {
+    delete task.assignee;
+  } else {
+    task.assignee = assignee;
+  }
+
+  await fs.promises.writeFile(storePath, `${JSON.stringify(raw, null, 2)}\n`);
+}
+
 // ── GET /api/kanban/tasks ────────────────────────────────────────────
 
 describe('GET /api/kanban/tasks', () => {
@@ -899,6 +916,265 @@ describe('POST /api/kanban/tasks/:id/execute', () => {
     expect(latest.run!.status).toBe('error');
     expect(latest.run!.error).toContain('Spawn failed:');
     expect(latest.run!.error).toContain(errorMessage);
+  });
+
+
+  it('routes assigned normal-path execution through the owning root session', async () => {
+    const invokeGatewayToolMock = vi.fn(async () => ({ sessionKey: 'agent:main:subagent:unexpected' }));
+    const launchMock = vi.fn(async ({ label, parentSessionKey }: { label: string; parentSessionKey: string }) => ({
+      sessionKey: buildMockRootSessionKey(label),
+      parentSessionKey,
+      knownSessionKeysBefore: [parentSessionKey],
+      runId: 'run-assigned-primary',
+    }));
+
+    vi.doMock('../lib/kanban-subagent-fallback.js', () => ({
+      buildKanbanFallbackRunKey: buildMockRootSessionKey,
+      resolveKanbanFallbackParentSessionKey: vi.fn((assignee?: string) => {
+        if (!assignee || assignee === 'operator') return null;
+        const match = assignee.match(/^agent:([^:]+)/);
+        if (!match || match[1] === 'main') return null;
+        return `agent:${match[1]}:main`;
+      }),
+      launchKanbanFallbackSubagentViaRpc: launchMock,
+    }));
+
+    const gatewayRpcMock = vi.fn(async (method: string) => {
+      if (method === 'sessions.list') {
+        return { sessions: [{ sessionKey: 'agent:designer:main' }] };
+      }
+      return {};
+    });
+
+    const app = await buildApp({
+      executionMode: 'primary',
+      invokeGatewayToolMock,
+      gatewayRpcMock,
+    });
+    const task = await createTask(app, { status: 'todo', assignee: 'agent:designer' });
+
+    const res = await app.request(`/api/kanban/tasks/${task.id}/execute`, json({}));
+    expect(res.status).toBe(200);
+    const body = await res.json() as KanbanTask;
+
+    expect(body.status).toBe('in-progress');
+    expect(launchMock).toHaveBeenCalledWith(expect.objectContaining({
+      parentSessionKey: 'agent:designer:main',
+    }));
+    expect(invokeGatewayToolMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { label: 'operator assignee', assignee: 'operator' },
+    { label: 'unassigned task', assignee: undefined },
+  ])('keeps sessions_spawn for $label on the normal path', async ({ assignee }) => {
+    const invokeGatewayToolMock = vi.fn(async () => ({ sessionKey: 'agent:main:subagent:spawned-child' }));
+    const launchMock = vi.fn(async ({ label, parentSessionKey }: { label: string; parentSessionKey: string }) => ({
+      sessionKey: buildMockRootSessionKey(label),
+      parentSessionKey,
+      knownSessionKeysBefore: [parentSessionKey],
+    }));
+
+    vi.doMock('../lib/kanban-subagent-fallback.js', () => ({
+      buildKanbanFallbackRunKey: buildMockRootSessionKey,
+      resolveKanbanFallbackParentSessionKey: vi.fn((value?: string) => value == null || value === 'operator' ? null : 'agent:designer:main'),
+      launchKanbanFallbackSubagentViaRpc: launchMock,
+    }));
+
+    const app = await buildApp({ executionMode: 'primary', invokeGatewayToolMock });
+    const task = await createTask(app, {
+      status: 'todo',
+      ...(assignee === undefined ? {} : { assignee }),
+    });
+
+    const res = await app.request(`/api/kanban/tasks/${task.id}/execute`, json({}));
+    expect(res.status).toBe(200);
+
+    expect(invokeGatewayToolMock).toHaveBeenCalledWith('sessions_spawn', expect.objectContaining({
+      mode: 'run',
+    }));
+    expect(launchMock).not.toHaveBeenCalled();
+  });
+
+  it('fails fast when an assigned normal-path root session is missing', async () => {
+    const invokeGatewayToolMock = vi.fn(async () => ({ sessionKey: 'agent:main:subagent:unexpected' }));
+    const launchMock = vi.fn(async ({ label, parentSessionKey }: { label: string; parentSessionKey: string }) => ({
+      sessionKey: buildMockRootSessionKey(label),
+      parentSessionKey,
+      knownSessionKeysBefore: [parentSessionKey],
+    }));
+
+    vi.doMock('../lib/kanban-subagent-fallback.js', () => ({
+      buildKanbanFallbackRunKey: buildMockRootSessionKey,
+      resolveKanbanFallbackParentSessionKey: vi.fn((assignee?: string) => {
+        if (!assignee || assignee === 'operator') return null;
+        const match = assignee.match(/^agent:([^:]+)/);
+        if (!match || match[1] === 'main') return null;
+        return `agent:${match[1]}:main`;
+      }),
+      launchKanbanFallbackSubagentViaRpc: launchMock,
+    }));
+
+    const gatewayRpcMock = vi.fn(async (method: string) => {
+      if (method === 'sessions.list') {
+        return { sessions: [{ sessionKey: 'agent:reviewer:main' }] };
+      }
+      return {};
+    });
+
+    const app = await buildApp({
+      executionMode: 'primary',
+      invokeGatewayToolMock,
+      gatewayRpcMock,
+    });
+    const task = await createTask(app, { status: 'todo', assignee: 'agent:designer' });
+
+    const res = await app.request(`/api/kanban/tasks/${task.id}/execute`, json({}));
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error: 'invalid_execution_target',
+      details: 'Parent agent session not found: agent:designer:main',
+    });
+    expect(launchMock).not.toHaveBeenCalled();
+    expect(invokeGatewayToolMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'agent:designer:main',
+    'agent:designer:subagent:child',
+  ])('routes legacy stored assignee %s through the owning root on the normal path', async (legacyAssignee) => {
+    const invokeGatewayToolMock = vi.fn(async () => ({ sessionKey: 'agent:main:subagent:unexpected' }));
+    const launchMock = vi.fn(async ({ label, parentSessionKey }: { label: string; parentSessionKey: string }) => ({
+      sessionKey: buildMockRootSessionKey(label),
+      parentSessionKey,
+      knownSessionKeysBefore: [parentSessionKey],
+    }));
+
+    vi.doMock('../lib/kanban-subagent-fallback.js', () => ({
+      buildKanbanFallbackRunKey: buildMockRootSessionKey,
+      resolveKanbanFallbackParentSessionKey: vi.fn((assignee?: string) => {
+        if (!assignee || assignee === 'operator') return null;
+        const match = assignee.match(/^agent:([^:]+)/);
+        if (!match || match[1] === 'main') return null;
+        return `agent:${match[1]}:main`;
+      }),
+      launchKanbanFallbackSubagentViaRpc: launchMock,
+    }));
+
+    const gatewayRpcMock = vi.fn(async (method: string) => {
+      if (method === 'sessions.list') {
+        return { sessions: [{ sessionKey: 'agent:designer:main' }] };
+      }
+      return {};
+    });
+
+    const app = await buildApp({
+      executionMode: 'primary',
+      invokeGatewayToolMock,
+      gatewayRpcMock,
+    });
+    const task = await createTask(app, { status: 'todo', assignee: 'agent:designer' });
+    await overwriteStoredTaskAssignee(task.id, legacyAssignee);
+
+    const res = await app.request(`/api/kanban/tasks/${task.id}/execute`, json({}));
+    expect(res.status).toBe(200);
+    expect(launchMock).toHaveBeenCalledWith(expect.objectContaining({
+      parentSessionKey: 'agent:designer:main',
+    }));
+    expect(invokeGatewayToolMock).not.toHaveBeenCalled();
+  });
+
+  it('treats legacy stored agent:main as unassigned on the normal path', async () => {
+    const invokeGatewayToolMock = vi.fn(async () => ({ sessionKey: 'agent:main:subagent:spawned-child' }));
+    const launchMock = vi.fn(async ({ label, parentSessionKey }: { label: string; parentSessionKey: string }) => ({
+      sessionKey: buildMockRootSessionKey(label),
+      parentSessionKey,
+      knownSessionKeysBefore: [parentSessionKey],
+    }));
+
+    vi.doMock('../lib/kanban-subagent-fallback.js', () => ({
+      buildKanbanFallbackRunKey: buildMockRootSessionKey,
+      resolveKanbanFallbackParentSessionKey: vi.fn((assignee?: string) => {
+        if (!assignee || assignee === 'operator') return null;
+        const match = assignee.match(/^agent:([^:]+)/);
+        if (!match || match[1] === 'main') return null;
+        return `agent:${match[1]}:main`;
+      }),
+      launchKanbanFallbackSubagentViaRpc: launchMock,
+    }));
+
+    const app = await buildApp({ executionMode: 'primary', invokeGatewayToolMock });
+    const task = await createTask(app, { status: 'todo', assignee: 'agent:designer' });
+    await overwriteStoredTaskAssignee(task.id, 'agent:main');
+
+    const res = await app.request(`/api/kanban/tasks/${task.id}/execute`, json({}));
+    expect(res.status).toBe(200);
+    expect(invokeGatewayToolMock).toHaveBeenCalledWith('sessions_spawn', expect.objectContaining({
+      mode: 'run',
+    }));
+    expect(launchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects legacy stored agent:main on the fallback path', async () => {
+    const launchMock = vi.fn(async ({ label, parentSessionKey }: { label: string; parentSessionKey: string }) => ({
+      sessionKey: buildMockRootSessionKey(label),
+      parentSessionKey,
+      knownSessionKeysBefore: [parentSessionKey],
+    }));
+
+    vi.doMock('../lib/kanban-subagent-fallback.js', () => ({
+      buildKanbanFallbackRunKey: buildMockRootSessionKey,
+      resolveKanbanFallbackParentSessionKey: vi.fn((assignee?: string) => {
+        if (!assignee || assignee === 'operator') return null;
+        const match = assignee.match(/^agent:([^:]+)/);
+        if (!match || match[1] === 'main') return null;
+        return `agent:${match[1]}:main`;
+      }),
+      launchKanbanFallbackSubagentViaRpc: launchMock,
+    }));
+
+    const app = await buildApp({ executionMode: 'fallback' });
+    const task = await createTask(app, { status: 'todo', assignee: 'agent:designer' });
+    await overwriteStoredTaskAssignee(task.id, 'agent:main');
+
+    const res = await app.request(`/api/kanban/tasks/${task.id}/execute`, json({}));
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error: 'invalid_execution_target',
+      details: 'Kanban automation on macOS requires assigning the task to a live worker agent root (not @main).',
+    });
+    expect(launchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { label: 'operator assignee', assignee: 'operator' },
+    { label: 'unassigned task', assignee: undefined },
+  ])('rejects $label on the fallback path', async ({ assignee }) => {
+    const launchMock = vi.fn(async ({ label, parentSessionKey }: { label: string; parentSessionKey: string }) => ({
+      sessionKey: buildMockRootSessionKey(label),
+      parentSessionKey,
+      knownSessionKeysBefore: [parentSessionKey],
+    }));
+
+    vi.doMock('../lib/kanban-subagent-fallback.js', () => ({
+      buildKanbanFallbackRunKey: buildMockRootSessionKey,
+      resolveKanbanFallbackParentSessionKey: vi.fn((value?: string) => value == null || value === 'operator' ? null : 'agent:designer:main'),
+      launchKanbanFallbackSubagentViaRpc: launchMock,
+    }));
+
+    const app = await buildApp({ executionMode: 'fallback' });
+    const task = await createTask(app, {
+      status: 'todo',
+      ...(assignee === undefined ? {} : { assignee }),
+    });
+
+    const res = await app.request(`/api/kanban/tasks/${task.id}/execute`, json({}));
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error: 'invalid_execution_target',
+      details: 'Kanban automation on macOS requires assigning the task to a live worker agent root (not @main).',
+    });
+    expect(launchMock).not.toHaveBeenCalled();
   });
 
   it('executes a todo task', async () => {

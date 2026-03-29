@@ -25,7 +25,7 @@ import {
   ProposalNotFoundError,
   ProposalAlreadyResolvedError,
 } from '../lib/kanban-store.js';
-import { InvalidKanbanAssigneeError } from '../lib/kanban-assignee.js';
+import { InvalidKanbanAssigneeError, resolveKanbanAssigneeRootSessionKey } from '../lib/kanban-assignee.js';
 import { invokeGatewayTool } from '../lib/gateway-client.js';
 import { gatewayRpcCall } from '../lib/gateway-rpc.js';
 import { withMutex } from '../lib/mutex.js';
@@ -33,7 +33,6 @@ import { parseKanbanMarkers, stripKanbanMarkers } from '../lib/parseMarkers.js';
 import {
   buildKanbanFallbackRunKey,
   launchKanbanFallbackSubagentViaRpc,
-  resolveKanbanFallbackParentSessionKey,
 } from '../lib/kanban-subagent-fallback.js';
 import type {
   KanbanTask,
@@ -1053,60 +1052,27 @@ app.post('/api/kanban/tasks/:id/execute', rateLimitGeneral, async (c) => {
         return { duplicate: true } as const;
       }
 
-      if (!useFallback) {
-        const task = await store.executeTask(id, parsed.data, 'operator');
-        const taskDescription = task.description || task.title;
-        const runSessionKey = task.run?.sessionKey;
-        if (!runSessionKey) {
-          throw new Error(`executeTask did not produce a run session key for task ${id}`);
+      const assignedParentSessionKey = resolveKanbanAssigneeRootSessionKey(existing.assignee);
+      if (assignedParentSessionKey) {
+        const sessionsResponse = await gatewayRpcCall('sessions.list', {
+          activeMinutes: POLL_SESSIONS_ACTIVE_MINUTES,
+          limit: POLL_SESSIONS_LIMIT,
+        }) as { sessions?: GatewaySessionSummary[] };
+        const sessions = Array.isArray(sessionsResponse.sessions) ? sessionsResponse.sessions : [];
+        if (!sessions.some((session) => getSessionKey(session) === assignedParentSessionKey)) {
+          throw new KanbanExecutionPreflightError(`Parent agent session not found: ${assignedParentSessionKey}`);
         }
 
         const config = await store.getConfig();
-        const model = task.model || config.defaultModel;
-        const thinking = task.thinking || config.defaultThinking;
-
-        return {
-          duplicate: false,
-          task,
-          primarySpawn: {
-            runSessionKey,
-            prompt: `You are working on a Kanban task.
-
-Title: ${task.title}
-
-Description: ${taskDescription}
-
-Deliver your result as a clear summary of what was done.`,
-            model,
-            thinking,
-          },
-        } as const;
-      }
-
-      const parentSessionKey = resolveKanbanFallbackParentSessionKey(existing.assignee);
-      if (!parentSessionKey) {
-        throw new KanbanExecutionPreflightError('Kanban automation on macOS requires assigning the task to a live worker agent root (not @main).');
-      }
-
-      const sessionsResponse = await gatewayRpcCall('sessions.list', {
-        activeMinutes: POLL_SESSIONS_ACTIVE_MINUTES,
-        limit: POLL_SESSIONS_LIMIT,
-      }) as { sessions?: GatewaySessionSummary[] };
-      const sessions = Array.isArray(sessionsResponse.sessions) ? sessionsResponse.sessions : [];
-      if (!sessions.some((session) => getSessionKey(session) === parentSessionKey)) {
-        throw new KanbanExecutionPreflightError(`Parent agent session not found: ${parentSessionKey}`);
-      }
-
-      const config = await store.getConfig();
-      const model = existing.model || parsed.data.model || config.defaultModel;
-      const thinking = existing.thinking || parsed.data.thinking || config.defaultThinking;
-      const persistedModel = existing.model || parsed.data.model;
-      const persistedThinking = existing.thinking || parsed.data.thinking;
-      const titleSlug = existing.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'task';
-      const label = `kb-${titleSlug}-${existing.id}-v${existing.version + 1}-${Date.now()}`;
-      const sessionKey = buildKanbanFallbackRunKey(label);
-      const taskDescription = existing.description || existing.title;
-      const prompt = `You are working on a Kanban task.
+        const model = existing.model || parsed.data.model || config.defaultModel;
+        const thinking = existing.thinking || parsed.data.thinking || config.defaultThinking;
+        const persistedModel = existing.model || parsed.data.model;
+        const persistedThinking = existing.thinking || parsed.data.thinking;
+        const titleSlug = existing.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'task';
+        const label = `kb-${titleSlug}-${existing.id}-v${existing.version + 1}-${Date.now()}`;
+        const sessionKey = buildKanbanFallbackRunKey(label);
+        const taskDescription = existing.description || existing.title;
+        const prompt = `You are working on a Kanban task.
 
 Title: ${existing.title}
 
@@ -1114,24 +1080,57 @@ Description: ${taskDescription}
 
 Deliver your result as a clear summary of what was done.`;
 
-      const task = await store.executeTask(
-        id,
-        {
-          sessionKey,
-          model: persistedModel,
-          thinking: persistedThinking,
-        },
-        'operator',
-      );
+        const task = await store.executeTask(
+          id,
+          {
+            sessionKey,
+            model: persistedModel,
+            thinking: persistedThinking,
+          },
+          'operator',
+        );
+
+        return {
+          duplicate: false,
+          task,
+          fallbackLaunch: {
+            sessionKey,
+            parentSessionKey: assignedParentSessionKey,
+            label,
+            prompt,
+            model,
+            thinking,
+          },
+        } as const;
+      }
+
+      if (useFallback) {
+        throw new KanbanExecutionPreflightError('Kanban automation on macOS requires assigning the task to a live worker agent root (not @main).');
+      }
+
+      const task = await store.executeTask(id, parsed.data, 'operator');
+      const taskDescription = task.description || task.title;
+      const runSessionKey = task.run?.sessionKey;
+      if (!runSessionKey) {
+        throw new Error(`executeTask did not produce a run session key for task ${id}`);
+      }
+
+      const config = await store.getConfig();
+      const model = task.model || config.defaultModel;
+      const thinking = task.thinking || config.defaultThinking;
 
       return {
         duplicate: false,
         task,
-        fallbackLaunch: {
-          sessionKey,
-          parentSessionKey,
-          label,
-          prompt,
+        primarySpawn: {
+          runSessionKey,
+          prompt: `You are working on a Kanban task.
+
+Title: ${task.title}
+
+Description: ${taskDescription}
+
+Deliver your result as a clear summary of what was done.`,
           model,
           thinking,
         },
