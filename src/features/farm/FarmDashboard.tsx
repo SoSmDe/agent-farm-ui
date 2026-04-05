@@ -12,6 +12,7 @@ import { AgentCard } from './AgentCard';
 import { MessageFeed } from './MessageFeed';
 import { FarmStats } from './FarmStats';
 import { AgentDetails } from './AgentDetails';
+import { SetupPanel } from './SetupPanel';
 
 type DashboardTab = 'overview' | 'agents';
 
@@ -121,7 +122,8 @@ function ConnectionIndicator({ connected }: { connected: boolean }) {
 
 export function FarmDashboard() {
   const { agents, recentMessages, stats, loading, error, connected, lastUpdated, retry, agentMessageCounts } = useFarmData();
-  const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
+  const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
+  const [showSetup, setShowSetup] = useState(false);
 
   const timeAgo = useTimeAgo(lastUpdated);
 
@@ -149,7 +151,10 @@ export function FarmDashboard() {
           </span>
         </div>
 
-        <ConnectionIndicator connected={connected} />
+        <div className="flex items-center gap-3">
+          <button onClick={() => setShowSetup(true)} className="text-[0.667rem] text-muted-foreground/60 hover:text-muted-foreground uppercase tracking-widest transition-colors">Setup</button>
+          <ConnectionIndicator connected={connected} />
+        </div>
       </div>
 
       {/* Tab switcher */}
@@ -185,7 +190,9 @@ export function FarmDashboard() {
         </div>
       )}
 
-      {activeTab === 'overview' && (
+      {showSetup && <SetupPanel onClose={() => setShowSetup(false)} />}
+
+      {activeTab === "overview" && (
         <>
           {/* Stats bar */}
           <div className="shrink-0 px-6 pb-4">

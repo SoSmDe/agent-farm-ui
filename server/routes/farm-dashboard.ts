@@ -85,3 +85,45 @@ app.post('/api/farm/send', async (c) => {
 });
 
 export default app;
+
+// ── GET /api/farm/setup/status ─────────────────────────────────────
+app.get('/api/farm/setup/status', async (c) => {
+  try {
+    const adminToken = process.env.FARM_ADMIN_TOKEN || '';
+    const data = await farmGet('/admin/setup/status', adminToken);
+    return c.json(data);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Farm API unreachable';
+    return c.json({ error: message }, 502);
+  }
+});
+
+// ── POST /api/farm/setup/oauth ─────────────────────────────────────
+app.post('/api/farm/setup/oauth', async (c) => {
+  try {
+    const adminToken = process.env.FARM_ADMIN_TOKEN || '';
+    const body = await c.req.json();
+    const data = await farmPost('/admin/setup/oauth', body, adminToken);
+    return c.json(data);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Farm API unreachable';
+    return c.json({ error: message }, 502);
+  }
+});
+
+// ── DELETE /api/farm/agents/:name ──────────────────────────────────
+app.delete('/api/farm/agents/:name', async (c) => {
+  try {
+    const adminToken = process.env.FARM_ADMIN_TOKEN || '';
+    const name = c.req.param('name');
+    const res = await fetch(`${process.env.FARM_API_URL || 'http://localhost:3000'}/admin/agents/${name}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${adminToken}` },
+    });
+    const data = await res.json();
+    return c.json(data, res.ok ? 200 : res.status as any);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Farm API unreachable';
+    return c.json({ error: message }, 502);
+  }
+});
