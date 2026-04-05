@@ -251,28 +251,6 @@ export function TopBar({
         {onViewModeChange && (
           <div className="order-3 flex w-full items-center gap-2 max-[371px]:gap-1 sm:order-none sm:ml-2 sm:w-auto">
             <button
-              onClick={() => onViewModeChange("chat")}
-              title="Chat View"
-              aria-label="Switch to chat view"
-              aria-pressed={viewMode === "chat"}
-              data-active={viewMode === "chat"}
-              className="shell-chip min-h-11 flex-1 justify-center text-[0.733rem] uppercase tracking-[0.14em] max-[371px]:min-h-[38px] max-[371px]:gap-1 max-[371px]:px-2 max-[371px]:text-[0.667rem] max-[371px]:tracking-[0.08em] max-[371px]:[&_svg]:size-3 sm:min-h-10 sm:flex-none"
-            >
-              <MessageSquare size={13} aria-hidden="true" />
-              <span>Chat</span>
-            </button>
-            <button
-              onClick={() => onViewModeChange("kanban")}
-              title="Tasks View"
-              aria-label="Switch to tasks view"
-              aria-pressed={viewMode === "kanban"}
-              data-active={viewMode === "kanban"}
-              className="shell-chip min-h-11 flex-1 justify-center text-[0.733rem] uppercase tracking-[0.14em] max-[371px]:min-h-[38px] max-[371px]:gap-1 max-[371px]:px-2 max-[371px]:text-[0.667rem] max-[371px]:tracking-[0.08em] max-[371px]:[&_svg]:size-3 sm:min-h-10 sm:flex-none"
-            >
-              <LayoutGrid size={13} aria-hidden="true" />
-              <span>Tasks</span>
-            </button>
-            <button
               onClick={() => onViewModeChange("farm")}
               title="Agent Farm Dashboard"
               aria-label="Switch to farm dashboard"
@@ -367,25 +345,7 @@ export function TopBar({
             </button>
           )}
 
-          {/* Usage button */}
-          <button
-            onClick={() => togglePanel("usage")}
-            title="Token Usage"
-            aria-label="Toggle usage panel"
-            aria-expanded={visiblePanel === "usage"}
-            aria-haspopup="true"
-            aria-controls="topbar-panel"
-            data-active={visiblePanel === "usage"}
-            className={buttonBase}
-          >
-            <BarChart3 size={14} aria-hidden="true" />
-            <span className="hidden sm:inline">Usage</span>
-            {totalCost && (
-              <span className="hidden rounded-full bg-background/80 px-2 py-0.5 text-[0.6rem] tabular-nums text-foreground/80 lg:inline-flex">
-                {totalCost}
-              </span>
-            )}
-          </button>
+          {/* Usage button hidden — not connected to Agent Farm */}
 
           {/* Settings button */}
           <button

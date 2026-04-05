@@ -11,6 +11,9 @@ import { useFarmData } from './useFarmData';
 import { AgentCard } from './AgentCard';
 import { MessageFeed } from './MessageFeed';
 import { FarmStats } from './FarmStats';
+import { AgentDetails } from './AgentDetails';
+
+type DashboardTab = 'overview' | 'agents';
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -118,6 +121,7 @@ function ConnectionIndicator({ connected }: { connected: boolean }) {
 
 export function FarmDashboard() {
   const { agents, recentMessages, stats, loading, error, connected, lastUpdated, retry, agentMessageCounts } = useFarmData();
+  const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
 
   const timeAgo = useTimeAgo(lastUpdated);
 
@@ -148,6 +152,23 @@ export function FarmDashboard() {
         <ConnectionIndicator connected={connected} />
       </div>
 
+      {/* Tab switcher */}
+      <div className="shrink-0 px-6 pb-3 flex items-center gap-1">
+        {(['overview', 'agents'] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-3 py-1.5 rounded-md text-[0.733rem] font-medium uppercase tracking-wider transition-colors ${
+              activeTab === tab
+                ? 'bg-foreground/10 text-foreground'
+                : 'text-muted-foreground/60 hover:text-muted-foreground hover:bg-foreground/5'
+            }`}
+          >
+            {tab === 'overview' ? 'Overview' : 'Agents'}
+          </button>
+        ))}
+      </div>
+
       {/* Inline error banner (when we have stale data but fetch failed) */}
       {error && agents.length > 0 && (
         <div className="shrink-0 mx-6 mb-3 flex items-center justify-between rounded-md border border-red/30 bg-red/10 px-3 py-2">
@@ -164,55 +185,63 @@ export function FarmDashboard() {
         </div>
       )}
 
-      {/* Stats bar */}
-      <div className="shrink-0 px-6 pb-4">
-        <FarmStats stats={stats} recentMessages={recentMessages} />
-      </div>
+      {activeTab === 'overview' && (
+        <>
+          {/* Stats bar */}
+          <div className="shrink-0 px-6 pb-4">
+            <FarmStats stats={stats} recentMessages={recentMessages} />
+          </div>
 
-      {/* Main content: agents grid + message feed */}
-      <div className="flex-1 min-h-0 px-6 pb-6 grid grid-cols-1 lg:grid-cols-[1fr_1.2fr] gap-4">
-        {/* Agents grid */}
-        <Card className="flex flex-col min-h-0">
-          <CardHeader className="border-b border-border/40">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <span className="text-green text-xs">&#x25CF;</span>
-              Agents
-              <span className="text-[0.667rem] text-muted-foreground font-normal ml-auto">
-                {agents.length} total
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1 overflow-y-auto py-3">
-            {agents.length === 0 ? (
-              <div className="flex items-center justify-center h-full text-muted-foreground/50 text-[0.733rem]">
-                No agents registered
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
-                {agents.map((agent) => (
-                  <AgentCard key={agent.id} agent={agent} messageCounts={agentMessageCounts[agent.id]} />
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+          {/* Main content: agents grid + message feed */}
+          <div className="flex-1 min-h-0 px-6 pb-6 grid grid-cols-1 lg:grid-cols-[1fr_1.2fr] gap-4">
+            {/* Agents grid */}
+            <Card className="flex flex-col min-h-0">
+              <CardHeader className="border-b border-border/40">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <span className="text-green text-xs">&#x25CF;</span>
+                  Agents
+                  <span className="text-[0.667rem] text-muted-foreground font-normal ml-auto">
+                    {agents.length} total
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex-1 overflow-y-auto py-3">
+                {agents.length === 0 ? (
+                  <div className="flex items-center justify-center h-full text-muted-foreground/50 text-[0.733rem]">
+                    No agents registered
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
+                    {agents.map((agent) => (
+                      <AgentCard key={agent.id} agent={agent} messageCounts={agentMessageCounts[agent.name]} />
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-        {/* Message feed */}
-        <Card className="flex flex-col min-h-0">
-          <CardHeader className="border-b border-border/40">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <span className="text-info text-xs">&#x25CF;</span>
-              Message Bus
-              <span className="text-[0.667rem] text-muted-foreground font-normal ml-auto">
-                {recentMessages.length} recent
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1 min-h-0 flex flex-col p-0">
-            <MessageFeed messages={recentMessages} />
-          </CardContent>
-        </Card>
-      </div>
+            {/* Message feed */}
+            <Card className="flex flex-col min-h-0">
+              <CardHeader className="border-b border-border/40">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <span className="text-info text-xs">&#x25CF;</span>
+                  Message Bus
+                  <span className="text-[0.667rem] text-muted-foreground font-normal ml-auto">
+                    {recentMessages.length} recent
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex-1 min-h-0 flex flex-col p-0">
+                <MessageFeed messages={recentMessages} />
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      )}
+
+      {activeTab === 'agents' && (
+        <AgentDetails agents={agents} messages={recentMessages} />
+      )}
 
       {/* Footer — last updated */}
       <div className="shrink-0 px-6 pb-3 flex justify-end">
