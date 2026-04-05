@@ -1,7 +1,10 @@
-import { getWorkspaceStorageKey } from './workspaceScope';
+/**
+ * Persisted drafts stub — workspace features removed from Agent Farm.
+ * Provides simple localStorage-based draft persistence.
+ */
 
 function getDraftStorageKey(kind: string, agentId: string): string {
-  return getWorkspaceStorageKey(`draft:${kind}`, agentId);
+  return `agent-farm:${agentId}:draft:${kind}`;
 }
 
 export function encodeDraftPart(value: string): string {

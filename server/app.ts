@@ -23,31 +23,10 @@ import { resolveCorsOrigin } from './lib/origin-utils.js';
 
 import healthRoutes from './routes/health.js';
 import authRoutes from './routes/auth.js';
-import ttsRoutes from './routes/tts.js';
-import transcribeRoutes from './routes/transcribe.js';
-import agentLogRoutes from './routes/agent-log.js';
-import tokensRoutes from './routes/tokens.js';
-import memoriesRoutes from './routes/memories.js';
 import eventsRoutes from './routes/events.js';
 import serverInfoRoutes from './routes/server-info.js';
-import codexLimitsRoutes from './routes/codex-limits.js';
-import claudeCodeLimitsRoutes from './routes/claude-code-limits.js';
 import versionRoutes from './routes/version.js';
-import channelsRoutes from './routes/channels.js';
-import versionCheckRoutes from './routes/version-check.js';
-import gatewayRoutes from './routes/gateway.js';
-import connectDefaultsRoutes from './routes/connect-defaults.js';
-import workspaceRoutes from './routes/workspace.js';
-import cronsRoutes from './routes/crons.js';
-import sessionsRoutes from './routes/sessions.js';
-import apiKeysRoutes from './routes/api-keys.js';
-import skillsRoutes from './routes/skills.js';
-import filesRoutes from './routes/files.js';
-import voicePhrasesRoutes from './routes/voice-phrases.js';
-import fileBrowserRoutes from './routes/file-browser.js';
-import kanbanRoutes from './routes/kanban.js';
 import farmDashboardRoutes from './routes/farm-dashboard.js';
-// activity routes removed — tab dropped from workspace panel
 
 const app = new Hono();
 
@@ -84,13 +63,8 @@ app.use('*', cacheHeaders);
 // ── API routes ───────────────────────────────────────────────────────
 
 const routes = [
-  healthRoutes, authRoutes, ttsRoutes, transcribeRoutes, agentLogRoutes,
-  tokensRoutes, memoriesRoutes, eventsRoutes, serverInfoRoutes,
-  codexLimitsRoutes, claudeCodeLimitsRoutes, versionRoutes, versionCheckRoutes,
-  gatewayRoutes, connectDefaultsRoutes,
-  workspaceRoutes, cronsRoutes, sessionsRoutes, skillsRoutes, filesRoutes, apiKeysRoutes,
-  voicePhrasesRoutes, fileBrowserRoutes, channelsRoutes, kanbanRoutes,
-  farmDashboardRoutes,
+  healthRoutes, authRoutes, eventsRoutes, serverInfoRoutes,
+  versionRoutes, farmDashboardRoutes,
 ];
 for (const route of routes) app.route('/', route);
 
