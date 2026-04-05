@@ -64,10 +64,19 @@ export function useFarmData(): UseFarmDataReturn {
       const res = await fetch('/api/farm/state', { signal: controller.signal });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-      const data: FarmState = await res.json();
-      setAgents(data.agents ?? []);
-      setRecentMessages(data.recentMessages ?? []);
-      setStats(data.stats ?? EMPTY_STATS);
+      const raw = await res.json();
+      setAgents(raw.agents ?? []);
+      setRecentMessages(
+        (raw.recentMessages ?? []).map((m: any) => ({
+          id: m.id,
+          from: m.from_agent ?? m.from,
+          to: m.to_agent ?? m.to,
+          content: m.message ?? m.content,
+          timestamp: m.created_at ?? m.timestamp,
+          status: m.status,
+        }))
+      );
+      setStats(raw.stats ?? EMPTY_STATS);
       setError(null);
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') return;

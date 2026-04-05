@@ -306,16 +306,23 @@ export default function App({ onLogout }: AppProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [spawnDialogOpen, setSpawnDialogOpen] = useState(false);
 
-  // View mode state (chat | kanban), persisted to localStorage
+  // View mode state (chat | kanban | farm), persisted to localStorage
   const [viewMode, setViewModeRaw] = useState<ViewMode>(() => {
     try {
       const saved = localStorage.getItem('nerve:viewMode');
-      if (saved === 'kanban') return 'kanban';
+      if (saved === 'kanban' || saved === 'farm') return saved;
     } catch { /* ignore */ }
-    return 'chat';
+    return 'farm';
   });
   const [pendingTaskId, setPendingTaskId] = useState<string | null>(null);
   const setViewMode = useCallback((mode: ViewMode) => {
+    // Chat and Tasks require Gateway connection — block if not connected
+    if ((mode === 'chat' || mode === 'kanban') && connectionState !== 'connected') {
+      // Stay on farm if no gateway
+      setViewModeRaw('farm');
+      try { localStorage.setItem('nerve:viewMode', 'farm'); } catch { /* ignore */ }
+      return;
+    }
     setViewModeRaw(mode);
 
     if (mode === 'kanban' && isCompactLayout) {
@@ -323,7 +330,7 @@ export default function App({ onLogout }: AppProps) {
     }
 
     try { localStorage.setItem('nerve:viewMode', mode); } catch { /* ignore */ }
-  }, [isCompactLayout, setFileBrowserCollapsed]);
+  }, [isCompactLayout, setFileBrowserCollapsed, connectionState]);
   const openTaskInBoard = useCallback((taskId: string) => {
     setPendingTaskId(taskId);
     setViewMode('kanban');
@@ -537,13 +544,13 @@ export default function App({ onLogout }: AppProps) {
     });
   }, [currentSession, getWorkspaceSwitchLabel, requestWorkspaceTransition, sessions, spawnSession]);
 
-  // Boot sequence: fade in panels when connected
+  // Boot sequence: fade in panels when connected (or farm mode)
   useEffect(() => {
-    if (connectionState === 'connected' && !booted) {
+    if ((connectionState === 'connected' || viewMode === 'farm') && !booted) {
       const timer = setTimeout(() => setBooted(true), 50);
       return () => clearTimeout(timer);
     }
-  }, [connectionState, booted]);
+  }, [connectionState, viewMode, booted]);
 
   // Log header glow when new entries arrive
   // This effect legitimately needs to set state in response to prop changes
@@ -755,15 +762,7 @@ export default function App({ onLogout }: AppProps) {
       >
         Skip to chat
       </a>
-      <ConnectDialog
-        open={dialogOpen && connectionState !== 'connected' && connectionState !== 'reconnecting'}
-        onConnect={handleConnect}
-        error={connectError}
-        defaultUrl={editableUrl}
-        defaultToken={editableToken}
-        officialUrl={officialUrl}
-        serverSideAuth={serverSideAuth}
-      />
+      {/* ConnectDialog disabled — Agent Farm does not use OpenClaw Gateway */}
 
       {/*
        * Gateway state banners.
