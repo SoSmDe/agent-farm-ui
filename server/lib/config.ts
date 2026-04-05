@@ -66,6 +66,9 @@ export const config = {
       ? process.env.EDGE_VOICE_GENDER
       : 'female',
 
+  // Agent Farm API
+  farmApiUrl: process.env.FARM_API_URL || 'http://localhost:3000',
+
   // Gateway connection
   gatewayUrl: process.env.GATEWAY_URL || DEFAULT_GATEWAY_URL,
   gatewayToken: process.env.GATEWAY_TOKEN || process.env.OPENCLAW_GATEWAY_TOKEN || '',

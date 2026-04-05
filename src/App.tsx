@@ -25,6 +25,7 @@ import { useConnectionManager } from '@/hooks/useConnectionManager';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { useGatewayRestart } from '@/hooks/useGatewayRestart';
 import { ConnectDialog } from '@/features/connect/ConnectDialog';
+const FarmDashboard = lazy(() => import('@/features/farm/FarmDashboard').then(m => ({ default: m.FarmDashboard })));
 import { TopBar } from '@/components/TopBar';
 import { StatusBar } from '@/components/StatusBar';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -743,7 +744,7 @@ export default function App({ onLogout }: AppProps) {
     </Suspense>
   );
 
-  const showCompactFileBrowser = isCompactLayout && viewMode !== 'kanban' && !fileBrowserCollapsed;
+  const showCompactFileBrowser = isCompactLayout && viewMode !== 'kanban' && viewMode !== 'farm' && !fileBrowserCollapsed;
 
   return (
     <div className="scan-lines relative h-screen flex flex-col overflow-hidden" data-booted={booted}>
@@ -863,7 +864,7 @@ export default function App({ onLogout }: AppProps) {
       <div className="flex-1 flex gap-3 overflow-hidden min-h-0 px-2 pt-1.5 pb-2 sm:px-4 sm:pt-2 sm:pb-2">
         {/* File tree — desktop inline, mobile drawer */}
         {!isCompactLayout && (
-          <div className={viewMode === 'kanban' ? 'hidden' : fileBrowserCollapsed ? 'contents' : 'h-full min-h-0'}>
+          <div className={viewMode === 'kanban' || viewMode === 'farm' ? 'hidden' : fileBrowserCollapsed ? 'contents' : 'h-full min-h-0'}>
             <PanelErrorBoundary name="File Explorer">
               <FileTreePanel
                 workspaceAgentId={workspaceAgentId}
@@ -921,12 +922,19 @@ export default function App({ onLogout }: AppProps) {
             </Suspense>
           </div>
         )}
+        {viewMode === 'farm' && (
+          <div className="shell-panel boot-panel flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden rounded-[28px]">
+            <Suspense fallback={<div className="flex-1 flex items-center justify-center text-muted-foreground text-xs bg-background">Loading…</div>}>
+              <FarmDashboard />
+            </Suspense>
+          </div>
+        )}
         {isCompactLayout ? (
-          <div className={`shell-panel flex-1 min-w-0 min-h-0 overflow-hidden rounded-[28px] boot-panel${viewMode === 'kanban' ? ' hidden' : ''}`}>
+          <div className={`shell-panel flex-1 min-w-0 min-h-0 overflow-hidden rounded-[28px] boot-panel${viewMode === 'kanban' || viewMode === 'farm' ? ' hidden' : ''}`}>
             {chatContent}
           </div>
         ) : (
-          <div style={{ display: viewMode === 'kanban' ? 'none' : 'contents' }}>
+          <div style={{ display: viewMode === 'kanban' || viewMode === 'farm' ? 'none' : 'contents' }}>
             <ResizablePanels
               leftPercent={panelRatio}
               onResize={setPanelRatio}

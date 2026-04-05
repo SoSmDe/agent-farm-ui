@@ -3,7 +3,7 @@ import { themes, type ThemeName } from '@/lib/themes';
 import { fonts, type FontName } from '@/lib/fonts';
 import type { TTSProvider } from '@/features/tts/useTTS';
 
-export type ViewMode = 'chat' | 'kanban';
+export type ViewMode = 'chat' | 'kanban' | 'farm';
 
 export interface CommandActions {
   onNewSession: () => void;
@@ -204,6 +204,13 @@ export function createCommands(actions: CommandActions): Command[] {
         action: () => actions.onSetViewMode!('chat'),
         category: 'kanban' as const,
         keywords: ['chat', 'conversation', 'view'],
+      },
+      {
+        id: 'open-farm',
+        label: 'Open Agent Farm Dashboard',
+        action: () => actions.onSetViewMode!('farm'),
+        category: 'kanban' as const,
+        keywords: ['farm', 'dashboard', 'agents', 'bus', 'mission control'],
       },
       {
         id: 'create-kanban-task',

@@ -46,6 +46,7 @@ import filesRoutes from './routes/files.js';
 import voicePhrasesRoutes from './routes/voice-phrases.js';
 import fileBrowserRoutes from './routes/file-browser.js';
 import kanbanRoutes from './routes/kanban.js';
+import farmDashboardRoutes from './routes/farm-dashboard.js';
 // activity routes removed — tab dropped from workspace panel
 
 const app = new Hono();
@@ -75,7 +76,7 @@ app.use(
 app.use('*', authMiddleware);
 // Apply compression to all routes except SSE (compression buffers chunks and breaks streaming)
 app.use('*', async (c, next) => {
-  if (c.req.path === '/api/events') return next();
+  if (c.req.path === '/api/events' || c.req.path === '/api/farm/events') return next();
   return compress()(c, next);
 });
 app.use('*', cacheHeaders);
@@ -89,6 +90,7 @@ const routes = [
   gatewayRoutes, connectDefaultsRoutes,
   workspaceRoutes, cronsRoutes, sessionsRoutes, skillsRoutes, filesRoutes, apiKeysRoutes,
   voicePhrasesRoutes, fileBrowserRoutes, channelsRoutes, kanbanRoutes,
+  farmDashboardRoutes,
 ];
 for (const route of routes) app.route('/', route);
 
