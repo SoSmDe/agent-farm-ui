@@ -273,7 +273,7 @@ export function MemoryList({ agentId, memories: initialMemories, onRefresh, isLo
         <div className="flex-1 flex items-center justify-center px-4">
           <div className="text-muted-foreground text-[0.733rem] text-center max-w-[240px]">
             <p className="font-medium text-foreground/70 mb-1">Sandboxed Workspace</p>
-            <p>Memory management is not available when the workspace lives inside an OpenClaw sandbox. View and edit memories directly on the gateway host.</p>
+            <p>Memory management is not available when the workspace lives inside a sandbox. View and edit memories directly on the gateway host.</p>
           </div>
         </div>
       ) : (

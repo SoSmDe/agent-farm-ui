@@ -239,11 +239,11 @@ export function TopBar({
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="truncate text-sm font-semibold uppercase tracking-[0.34em] text-primary max-[371px]:text-xs max-[371px]:tracking-[0.22em] sm:text-base">
-                Nerve
+                Agent Farm
               </span>
             </div>
             <div className="hidden xl:block text-[0.733rem] text-muted-foreground/80">
-              OpenClaw Cockpit{" "}
+              Mission Control{" "}
             </div>
           </div>
         </div>

@@ -5,7 +5,7 @@
  * Optionally connects to /api/farm/events (SSE) for real-time updates.
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -24,6 +24,7 @@ export interface FarmMessage {
   content: string;
   timestamp: string; // ISO timestamp
   status: 'pending' | 'delivered' | 'done';
+  priority?: number;
 }
 
 export interface FarmStats {
@@ -39,9 +40,18 @@ interface FarmState {
   stats: FarmStats;
 }
 
+export interface AgentMessageCounts {
+  pending: number;
+  total: number;
+}
+
 interface UseFarmDataReturn extends FarmState {
   loading: boolean;
   error: string | null;
+  connected: boolean;
+  lastUpdated: number | null;
+  retry: () => void;
+  agentMessageCounts: Record<string, AgentMessageCounts>;
 }
 
 const EMPTY_STATS: FarmStats = { total: 0, pending: 0, delivered: 0, done: 0 };
@@ -53,6 +63,7 @@ export function useFarmData(): UseFarmDataReturn {
   const [stats, setStats] = useState<FarmStats>(EMPTY_STATS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<number | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const fetchState = useCallback(async () => {
@@ -74,10 +85,12 @@ export function useFarmData(): UseFarmDataReturn {
           content: m.message ?? m.content,
           timestamp: m.created_at ?? m.timestamp,
           status: m.status,
+          priority: m.priority ?? 0,
         }))
       );
       setStats(raw.stats ?? EMPTY_STATS);
       setError(null);
+      setLastUpdated(Date.now());
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') return;
       setError(err instanceof Error ? err.message : 'Failed to fetch farm state');
@@ -110,6 +123,7 @@ export function useFarmData(): UseFarmDataReturn {
           setRecentMessages(data.recentMessages ?? []);
           setStats(data.stats ?? EMPTY_STATS);
           setError(null);
+          setLastUpdated(Date.now());
         } catch {
           // Ignore malformed SSE payloads
         }
@@ -161,5 +175,23 @@ export function useFarmData(): UseFarmDataReturn {
     };
   }, []);
 
-  return { agents, recentMessages, stats, loading, error };
+  const connected = error === null && !loading;
+
+  // Compute per-agent message counts from recentMessages
+  const agentMessageCounts = useMemo(() => {
+    const counts: Record<string, AgentMessageCounts> = {};
+    for (const msg of recentMessages) {
+      const agentId = msg.to;
+      if (!counts[agentId]) {
+        counts[agentId] = { pending: 0, total: 0 };
+      }
+      counts[agentId].total++;
+      if (msg.status === 'pending') {
+        counts[agentId].pending++;
+      }
+    }
+    return counts;
+  }, [recentMessages]);
+
+  return { agents, recentMessages, stats, loading, error, connected, lastUpdated, retry: fetchState, agentMessageCounts };
 }

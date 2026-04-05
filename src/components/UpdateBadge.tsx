@@ -61,14 +61,14 @@ export function UpdateBadge() {
           <DialogHeader>
             <DialogTitle>Update Available</DialogTitle>
             <DialogDescription>
-              Nerve <span className="font-mono font-semibold text-foreground">v{versionInfo.latest}</span> is
+              Agent Farm <span className="font-mono font-semibold text-foreground">v{versionInfo.latest}</span> is
               available. You're running <span className="font-mono text-muted-foreground">v{versionInfo.current}</span>.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div>
               <p className="text-sm text-muted-foreground mb-2">
-                Run this from the Nerve project directory:
+                Run this from the Agent Farm project directory:
               </p>
               <pre className="bg-secondary rounded-md px-3 py-2 text-sm font-mono select-all">
                 npm run update -- --yes
@@ -76,7 +76,7 @@ export function UpdateBadge() {
             </div>
             <div className="text-xs text-muted-foreground space-y-1">
               <p>This will fetch the latest release, rebuild, restart, and verify health.</p>
-              <p>If anything fails, Nerve automatically rolls back to your current version.</p>
+              <p>If anything fails, Agent Farm automatically rolls back to your current version.</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground mb-1">Other options:</p>

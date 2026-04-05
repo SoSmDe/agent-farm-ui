@@ -987,7 +987,7 @@ export default function App({ onLogout }: AppProps) {
       {/* Gateway Restart Confirmation */}
       <ConfirmDialog
         open={showGatewayRestartConfirm}
-        title="Restart OpenClaw Gateway"
+        title="Restart Gateway"
         message="This will briefly interrupt gateway connectivity. Continue?"
         confirmLabel="Restart"
         cancelLabel="Cancel"
