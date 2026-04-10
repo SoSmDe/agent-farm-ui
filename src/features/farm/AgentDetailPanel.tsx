@@ -7,7 +7,7 @@
  */
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { X, ArrowRight, User, MessageSquare, FolderOpen, Clock, Activity, Mail, FileText, Loader2, Search, Filter, GitBranch, List, Copy, Check, Download, StickyNote, Pin } from 'lucide-react';
+import { X, ArrowRight, User, MessageSquare, FolderOpen, Clock, Activity, Mail, FileText, Loader2, Search, Filter, GitBranch, List, Copy, Check, Download, StickyNote, Pin, TrendingUp, TrendingDown } from 'lucide-react';
 import type { FarmAgent, FarmMessage } from './useFarmData';
 
 // ── Copy to clipboard hook ────────────────────────────────────────
@@ -791,6 +791,37 @@ export function AgentDetailPanel({ agent, messages, onClose }: AgentDetailPanelP
                 </div>
               ))}
             </div>
+            {/* Today vs Yesterday */}
+            {(() => {
+              const now = new Date();
+              const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+              const yesterdayStart = todayStart - 86400000;
+              let today = 0, yesterday = 0;
+              for (const m of agentMessages) {
+                const ts = new Date(m.timestamp).getTime();
+                if (ts >= todayStart) today++;
+                else if (ts >= yesterdayStart) yesterday++;
+              }
+              const diff = today - yesterday;
+              const trend = diff > 0 ? "up" : diff < 0 ? "down" : "flat";
+              return (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-lg border border-border/30 bg-card/30 px-3 py-2 text-center">
+                    <p className="text-lg font-bold font-mono text-foreground">{today}</p>
+                    <p className="text-[0.6rem] text-muted-foreground/50 uppercase">Today</p>
+                  </div>
+                  <div className="rounded-lg border border-border/30 bg-card/30 px-3 py-2 text-center">
+                    <div className="flex items-center justify-center gap-1">
+                      <p className="text-lg font-bold font-mono text-foreground">{yesterday}</p>
+                      {trend === "up" && <TrendingUp size={12} className="text-green" />}
+                      {trend === "down" && <TrendingDown size={12} className="text-red/60" />}
+                    </div>
+                    <p className="text-[0.6rem] text-muted-foreground/50 uppercase">Yesterday</p>
+                  </div>
+                </div>
+              );
+            })()}
+
             <div className="rounded-lg border border-border/30 bg-card/30 px-4 py-3">
               <p className="text-[0.667rem] uppercase tracking-widest text-muted-foreground/50 mb-1">Last seen</p>
               <p className="text-sm text-foreground font-mono">{fullTimestamp(agent.last_seen)}</p>
