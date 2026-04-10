@@ -154,6 +154,7 @@ export function FarmDashboard() {
   const [edgeConversation, setEdgeConversation] = useState<{ a: string; b: string } | null>(null);
 
   const timeAgo = useTimeAgo(lastUpdated);
+  const isStale = !paused && lastUpdated !== null && (Date.now() - lastUpdated) > 30000;
   // Update browser tab title with pending count
   useEffect(() => {
     const pending = stats.pending;
@@ -277,6 +278,19 @@ export function FarmDashboard() {
             className="text-[0.667rem] font-medium text-red hover:text-red/80 transition-colors"
           >
             Retry
+          </button>
+        </div>
+      )}
+
+      {/* Stale data warning */}
+      {isStale && (
+        <div className="shrink-0 mx-3 sm:mx-6 mb-2 flex items-center gap-2 rounded-lg border border-red/25 bg-red/5 px-4 py-2">
+          <span className="text-red text-sm">&#x23F0;</span>
+          <span className="text-[0.733rem] text-red/80 font-medium">
+            Data may be stale ({timeAgo})
+          </span>
+          <button onClick={retry} className="ml-auto text-[0.667rem] text-red hover:text-red/80 font-medium transition-colors">
+            Refresh now
           </button>
         </div>
       )}
