@@ -127,6 +127,7 @@ export function FarmDashboard() {
   const [selectedAgent, setSelectedAgent] = useState<FarmAgent | null>(null);
   const [quickSearchOpen, setQuickSearchOpen] = useState(false);
   const [quickSearchQuery, setQuickSearchQuery] = useState("");
+  const [orgFullscreen, setOrgFullscreen] = useState(false);
   const [edgeConversation, setEdgeConversation] = useState<{ a: string; b: string } | null>(null);
 
   const timeAgo = useTimeAgo(lastUpdated);
