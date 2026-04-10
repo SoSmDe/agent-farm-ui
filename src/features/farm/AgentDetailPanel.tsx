@@ -7,7 +7,7 @@
  */
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { X, ArrowRight, User, MessageSquare, FolderOpen, Clock, Activity, Mail, FileText, Loader2, Search, Filter, GitBranch, List, Copy, Check, Download, StickyNote, Pin, TrendingUp, TrendingDown } from 'lucide-react';
+import { X, ArrowRight, User, MessageSquare, FolderOpen, Clock, Activity, Mail, FileText, Loader2, Search, Filter, GitBranch, List, Copy, Check, Download, StickyNote, Pin, TrendingUp, TrendingDown, ChevronRight, ChevronDown } from 'lucide-react';
 import type { FarmAgent, FarmMessage } from './useFarmData';
 
 // ── Copy to clipboard hook ────────────────────────────────────────
@@ -109,6 +109,108 @@ interface AgentFile {
   size: number;
   type: 'persona' | 'workspace' | 'memory' | 'other';
   modified?: string;
+}
+
+
+// ── File Section with folder grouping ───────────────────────────
+
+function FileSection({ title, files, icon, cls, onLoad, formatSize, relativeTime }: {
+  title: string;
+  files: AgentFile[];
+  icon: React.ReactNode;
+  cls: string;
+  onLoad: (name: string) => void;
+  formatSize: (size: number) => string;
+  relativeTime: (iso: string) => string;
+}) {
+  // Group files by directory prefix
+  const groups = useMemo(() => {
+    const dirs = new Map<string, AgentFile[]>();
+    const flat: AgentFile[] = [];
+    for (const f of files) {
+      const parts = f.name.split('/');
+      if (parts.length > 2) {
+        const dir = parts.slice(0, -1).join('/');
+        if (!dirs.has(dir)) dirs.set(dir, []);
+        dirs.get(dir)!.push(f);
+      } else {
+        flat.push(f);
+      }
+    }
+    return { flat, dirs };
+  }, [files]);
+
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const toggleDir = (dir: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(dir)) next.delete(dir); else next.add(dir);
+      return next;
+    });
+  };
+
+  return (
+    <div>
+      <p className="text-[0.667rem] uppercase tracking-widest text-muted-foreground/50 mb-2">
+        {title} <span className="text-muted-foreground/30">({files.length})</span>
+      </p>
+      <div className="space-y-1">
+        {groups.flat.map((f) => (
+          <FileRow key={f.name} f={f} icon={icon} cls={cls} onLoad={onLoad}
+            formatSize={formatSize} relativeTime={relativeTime} />
+        ))}
+        {[...groups.dirs.entries()].map(([dir, dirFiles]) => {
+          const isCollapsed = collapsed.has(dir);
+          const dirName = dir.replace(/^(workspace|memories)\//, '');
+          return (
+            <div key={dir}>
+              <button onClick={() => toggleDir(dir)}
+                className="w-full flex items-center gap-2 rounded-lg px-3 py-1.5 hover:bg-foreground/5 transition-colors text-left">
+                {isCollapsed ? <ChevronRight size={12} className="text-muted-foreground/40" /> : <ChevronDown size={12} className="text-muted-foreground/40" />}
+                <FolderOpen size={14} className="text-muted-foreground/40" />
+                <span className="text-[0.8rem] font-medium text-foreground/70">{dirName || dir}</span>
+                <span className="text-[0.55rem] text-muted-foreground/30 ml-auto">{dirFiles.length}</span>
+              </button>
+              {!isCollapsed && (
+                <div className="ml-6 space-y-0.5">
+                  {dirFiles.map((f) => (
+                    <FileRow key={f.name} f={f} icon={icon} cls={cls} onLoad={onLoad}
+                      formatSize={formatSize} relativeTime={relativeTime} />
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function FileRow({ f, icon, cls, onLoad, formatSize, relativeTime }: {
+  f: AgentFile; icon: React.ReactNode; cls: string;
+  onLoad: (name: string) => void;
+  formatSize: (size: number) => string;
+  relativeTime: (iso: string) => string;
+}) {
+  const displayName = f.name.split('/').pop() || f.name;
+  return (
+    <button
+      onClick={() => onLoad(f.name)}
+      className="w-full flex items-center gap-3 rounded-lg border border-border/30 bg-card/30 px-3 py-2 hover:bg-foreground/5 transition-colors text-left group"
+    >
+      <span className={`shrink-0 ${cls}`}>{icon}</span>
+      <div className="flex-1 min-w-0">
+        <span className="text-sm font-medium text-foreground block truncate">{displayName}</span>
+        {f.modified && (
+          <span className="text-[0.6rem] text-muted-foreground/30 font-mono">{relativeTime(f.modified)}</span>
+        )}
+      </div>
+      <span className="text-[0.625rem] text-muted-foreground/40 font-mono shrink-0">
+        {formatSize(f.size)}
+      </span>
+    </button>
+  );
 }
 
 function AgentFilesTab({ agentName }: { agentName: string }) {
@@ -237,34 +339,8 @@ function AgentFilesTab({ agentName }: { agentName: string }) {
             { title: 'Workspace', list: workspaceFiles, icon: <FolderOpen size={16} />, cls: 'text-orange/60' },
             { title: 'Other', list: otherFiles, icon: <FileText size={16} />, cls: 'text-muted-foreground/60' },
           ].map(({ title, list, icon, cls }) => list.length > 0 && (
-            <div key={title}>
-              <p className="text-[0.667rem] uppercase tracking-widest text-muted-foreground/50 mb-2">
-                {title} <span className="text-muted-foreground/30">({list.length})</span>
-              </p>
-              <div className="space-y-1">
-                {list.map((f) => {
-                  const displayName = f.name.replace(/^(workspace|memories)\//, '');
-                  return (
-                    <button
-                      key={f.name}
-                      onClick={() => loadFile(f.name)}
-                      className="w-full flex items-center gap-3 rounded-lg border border-border/30 bg-card/30 px-3 py-2.5 hover:bg-foreground/5 transition-colors text-left group"
-                    >
-                      <span className={`shrink-0 ${cls}`}>{icon}</span>
-                      <div className="flex-1 min-w-0">
-                        <span className="text-sm font-medium text-foreground block truncate">{displayName}</span>
-                        {f.modified && (
-                          <span className="text-[0.6rem] text-muted-foreground/30 font-mono">{relativeTime(f.modified)}</span>
-                        )}
-                      </div>
-                      <span className="text-[0.625rem] text-muted-foreground/40 font-mono shrink-0">
-                        {formatSize(f.size)}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            <FileSection key={title} title={title} files={list} icon={icon} cls={cls}
+              onLoad={loadFile} formatSize={formatSize} relativeTime={relativeTime} />
           ))}
           {files.length === 0 && (
             <div className="flex flex-col items-center justify-center h-32 text-muted-foreground/50 gap-2">
