@@ -40,9 +40,12 @@ const STATUS_COLORS: Record<string, { fill: string; stroke: string; glow: string
   offline: { fill: "#888", stroke: "#666", glow: "rgba(136,136,136,0.15)" },
 };
 
-// ── Layout ──────────────────────────────────────────────────────────
+// ── Layout types ────────────────────────────────────────────────────
+
+type LayoutType = "circular" | "tree" | "grid";
 
 const STORAGE_KEY = "agent-farm-org-positions";
+const LAYOUT_KEY = "agent-farm-org-layout";
 
 function defaultCircularLayout(names: string[], cx: number, cy: number, radius: number): Map<string, Pos> {
   const map = new Map<string, Pos>();
@@ -51,6 +54,63 @@ function defaultCircularLayout(names: string[], cx: number, cy: number, radius: 
     map.set(name, { x: cx + radius * Math.cos(angle), y: cy + radius * Math.sin(angle) });
   });
   return map;
+}
+
+function treeLayout(names: string[], W: number, H: number): Map<string, Pos> {
+  const map = new Map<string, Pos>();
+  if (names.length === 0) return map;
+
+  // First agent is the "root" at top center, rest branch below
+  const root = names[0];
+  map.set(root, { x: W / 2, y: 60 });
+
+  const children = names.slice(1);
+  if (children.length === 0) return map;
+
+  // Arrange children in rows of up to 3
+  const perRow = Math.min(3, children.length);
+  const rows = Math.ceil(children.length / perRow);
+  const rowHeight = Math.min(120, (H - 120) / rows);
+
+  children.forEach((name, i) => {
+    const row = Math.floor(i / perRow);
+    const col = i % perRow;
+    const rowCount = Math.min(perRow, children.length - row * perRow);
+    const startX = W / 2 - ((rowCount - 1) * 160) / 2;
+    map.set(name, {
+      x: startX + col * 160,
+      y: 140 + row * rowHeight,
+    });
+  });
+  return map;
+}
+
+function gridLayout(names: string[], W: number, H: number): Map<string, Pos> {
+  const map = new Map<string, Pos>();
+  if (names.length === 0) return map;
+
+  const cols = Math.ceil(Math.sqrt(names.length));
+  const rows = Math.ceil(names.length / cols);
+  const cellW = W / (cols + 1);
+  const cellH = H / (rows + 1);
+
+  names.forEach((name, i) => {
+    const row = Math.floor(i / cols);
+    const col = i % cols;
+    map.set(name, {
+      x: cellW + col * cellW,
+      y: cellH + row * cellH,
+    });
+  });
+  return map;
+}
+
+function getDefaultLayout(type: LayoutType, names: string[], W: number, H: number, radius: number): Map<string, Pos> {
+  switch (type) {
+    case "tree": return treeLayout(names, W, H);
+    case "grid": return gridLayout(names, W, H);
+    default: return defaultCircularLayout(names, W / 2, H / 2, radius);
+  }
 }
 
 function loadSavedPositions(): Record<string, Pos> {
@@ -75,6 +135,9 @@ export function OrgChart({ agents, messages, onSelectAgent, selectedAgentName, o
   const [dragAgent, setDragAgent] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState<Pos>({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
+  const [layoutType, setLayoutType] = useState<LayoutType>(() => {
+    try { return (localStorage.getItem(LAYOUT_KEY) as LayoutType) || "circular"; } catch { return "circular"; }
+  });
   const svgRef = useRef<SVGSVGElement>(null);
 
   // Zoom with scroll wheel
@@ -96,7 +159,7 @@ export function OrgChart({ agents, messages, onSelectAgent, selectedAgentName, o
   // Initialize positions: saved positions + defaults for new agents
   const [positions, setPositions] = useState<Map<string, Pos>>(() => {
     const saved = loadSavedPositions();
-    const defaults = defaultCircularLayout(agents.map((a) => a.name), cx, cy, radius);
+    const defaults = getDefaultLayout(layoutType, agents.map((a) => a.name), W, H, radius);
     const merged = new Map<string, Pos>();
     for (const agent of agents) {
       if (saved[agent.name]) {
@@ -108,10 +171,10 @@ export function OrgChart({ agents, messages, onSelectAgent, selectedAgentName, o
     return merged;
   });
 
-  // Update positions when agents change (new agents get default positions)
+  // Update positions when agents change
   useEffect(() => {
     setPositions((prev) => {
-      const defaults = defaultCircularLayout(agents.map((a) => a.name), cx, cy, radius);
+      const defaults = getDefaultLayout(layoutType, agents.map((a) => a.name), W, H, radius);
       const next = new Map(prev);
       let changed = false;
       for (const agent of agents) {
@@ -122,7 +185,16 @@ export function OrgChart({ agents, messages, onSelectAgent, selectedAgentName, o
       }
       return changed ? next : prev;
     });
-  }, [agents, cx, cy, radius]);
+  }, [agents, layoutType, cx, cy, radius, W, H]);
+
+  // Switch layout
+  const switchLayout = useCallback((type: LayoutType) => {
+    setLayoutType(type);
+    localStorage.setItem(LAYOUT_KEY, type);
+    const newPositions = getDefaultLayout(type, agents.map((a) => a.name), W, H, radius);
+    setPositions(newPositions);
+    localStorage.removeItem(STORAGE_KEY);
+  }, [agents, W, H, radius]);
 
   // Build edges
   const edges = useMemo(() => {
@@ -204,10 +276,10 @@ export function OrgChart({ agents, messages, onSelectAgent, selectedAgentName, o
   }, [dragAgent, positions]);
 
   const resetLayout = useCallback(() => {
-    const defaults = defaultCircularLayout(agents.map((a) => a.name), cx, cy, radius);
+    const defaults = getDefaultLayout(layoutType, agents.map((a) => a.name), W, H, radius);
     setPositions(defaults);
     localStorage.removeItem(STORAGE_KEY);
-  }, [agents, cx, cy, radius]);
+  }, [agents, layoutType, W, H, radius]);
 
   if (agents.length === 0) {
     return (
@@ -220,9 +292,21 @@ export function OrgChart({ agents, messages, onSelectAgent, selectedAgentName, o
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-4 gap-2">
       {/* Toolbar */}
-      <div className="flex items-center gap-2 self-end">
-        <span className="text-[0.6rem] text-muted-foreground/30 uppercase tracking-widest">
-          Drag nodes | Scroll to zoom | Click edges for conversation
+      <div className="flex items-center gap-2 self-end flex-wrap">
+        {/* Layout switcher */}
+        <div className="flex items-center rounded-md border border-border/30 overflow-hidden">
+          {([
+            { type: "circular" as const, label: "Circle" },
+            { type: "tree" as const, label: "Tree" },
+            { type: "grid" as const, label: "Grid" },
+          ]).map(({ type, label }) => (
+            <button key={type} onClick={() => switchLayout(type)}
+              className={`px-2.5 py-1 text-[0.667rem] font-medium transition-colors ${layoutType === type ? "bg-foreground/10 text-foreground" : "text-muted-foreground/40 hover:text-muted-foreground"}`}
+            >{label}</button>
+          ))}
+        </div>
+        <span className="text-[0.55rem] text-muted-foreground/25 uppercase tracking-widest hidden lg:inline">
+          Drag | Zoom | Click edges
         </span>
         <div className="flex items-center gap-1 border border-border/30 rounded-md overflow-hidden">
           <button onClick={() => setZoom((z) => Math.max(0.4, z * 0.8))}
