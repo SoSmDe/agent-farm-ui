@@ -6,7 +6,7 @@
  */
 
 import { useMemo, useState } from "react";
-import { ArrowRight, Filter, MessageSquare, Clock } from "lucide-react";
+import { ArrowRight, Filter, MessageSquare, Clock, Search } from "lucide-react";
 import type { FarmMessage, FarmAgent } from "./useFarmData";
 
 // ── Agent colors ────────────────────────────────────────────────────
@@ -67,6 +67,7 @@ interface TimelineGroup {
 
 export function Timeline({ messages, agents, onSelectAgent }: TimelineProps) {
   const [agentFilter, setAgentFilter] = useState<string>("all");
+  const [textSearch, setTextSearch] = useState("");
   const [directionFilter, setDirectionFilter] = useState<"all" | "agent-only">("all");
 
   // Get unique agent names
@@ -93,10 +94,15 @@ export function Timeline({ messages, agents, onSelectAgent }: TimelineProps) {
       );
     }
 
+    if (textSearch.trim()) {
+      const q = textSearch.toLowerCase();
+      result = result.filter((m) => (m.content || "").toLowerCase().includes(q));
+    }
+
     // Sort newest first
     result.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     return result;
-  }, [messages, agentFilter, directionFilter]);
+  }, [messages, agentFilter, directionFilter, textSearch]);
 
   // Group by date
   const groups = useMemo(() => {
@@ -133,6 +139,17 @@ export function Timeline({ messages, agents, onSelectAgent }: TimelineProps) {
     <div className="flex-1 flex flex-col min-h-0">
       {/* Header bar */}
       <div className="shrink-0 px-6 py-3 border-b border-border/30 space-y-2">
+        {/* Text search */}
+        <div className="relative">
+          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/40" />
+          <input
+            type="text"
+            placeholder="Search all messages..."
+            value={textSearch}
+            onChange={(e) => setTextSearch(e.target.value)}
+            className="w-full pl-8 pr-3 py-1.5 text-[0.8rem] rounded-md border border-border/30 bg-muted/20 text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/40"
+          />
+        </div>
         {/* Agent activity pills */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[0.6rem] text-muted-foreground/40 uppercase tracking-widest shrink-0">Activity:</span>
