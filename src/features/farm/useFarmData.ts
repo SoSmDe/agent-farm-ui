@@ -95,6 +95,7 @@ export function useFarmData(): UseFarmDataReturn {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
+  const [paused, setPaused] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   const fetchState = useCallback(async () => {
@@ -130,15 +131,15 @@ export function useFarmData(): UseFarmDataReturn {
     }
   }, []);
 
-  // Polling
+  // Polling (respects paused state)
   useEffect(() => {
-    fetchState();
-    const id = setInterval(fetchState, POLL_INTERVAL);
+    if (!paused) fetchState();
+    const id = paused ? undefined : setInterval(fetchState, POLL_INTERVAL);
     return () => {
-      clearInterval(id);
+      if (id) clearInterval(id);
       abortRef.current?.abort();
     };
-  }, [fetchState]);
+  }, [fetchState, paused]);
 
   // SSE for real-time updates
   useEffect(() => {
@@ -225,7 +226,7 @@ export function useFarmData(): UseFarmDataReturn {
     return counts;
   }, [recentMessages]);
 
-  return { agents, recentMessages, stats, loading, error, connected, lastUpdated, retry: fetchState, agentMessageCounts };
+  return { agents, recentMessages, stats, loading, error, connected, lastUpdated, retry: fetchState, agentMessageCounts, paused, setPaused };
 }
 
 // ── Shared agent color utility ──────────────────────────────────────

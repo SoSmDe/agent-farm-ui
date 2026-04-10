@@ -3,7 +3,7 @@
  * Cards are clickable to open the detail panel.
  */
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import type { FarmAgent, FarmMessage } from './useFarmData';
 import { MessageSquare, Clock, Activity, ArrowRight } from 'lucide-react';
@@ -156,6 +156,21 @@ interface AgentDetailsProps {
 }
 
 export function AgentDetails({ agents, messages, onSelectAgent }: AgentDetailsProps) {
+  const [sortBy, setSortBy] = useState<'name' | 'status' | 'activity'>('name');
+
+  const sortedAgentList = useMemo(() => {
+    return [...agents].sort((a, b) => {
+      if (sortBy === 'status') {
+        const order: Record<string, number> = { busy: 0, idle: 1, offline: 2 };
+        return (order[a.status] ?? 2) - (order[b.status] ?? 2);
+      }
+      if (sortBy === 'activity') {
+        return new Date(b.last_seen).getTime() - new Date(a.last_seen).getTime();
+      }
+      return a.name.localeCompare(b.name);
+    });
+  }, [agents, sortBy]);
+
   if (agents.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center text-muted-foreground/50 text-[0.733rem]">
@@ -169,8 +184,18 @@ export function AgentDetails({ agents, messages, onSelectAgent }: AgentDetailsPr
       {/* Communication matrix */}
       <CommMatrix agents={agents} messages={messages} />
 
+      {/* Sort controls */}
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-[0.6rem] text-muted-foreground/40 uppercase tracking-wider">Sort by:</span>
+        {(['name', 'status', 'activity'] as const).map((key) => (
+          <button key={key} onClick={() => setSortBy(key)}
+            className={`text-[0.667rem] px-2 py-0.5 rounded transition-colors ${sortBy === key ? 'bg-foreground/10 text-foreground' : 'text-muted-foreground/40 hover:text-muted-foreground'}`}
+          >{key}</button>
+        ))}
+      </div>
+
       {/* Agent cards */}
-      {agents.map((agent) => {
+      {sortedAgentList.map((agent) => {
         const cfg = STATUS_CONFIG[agent.status] ?? STATUS_CONFIG.offline;
         const agentMessages = messages.filter((m) => m.to === agent.name || m.from === agent.name);
         const pendingInbox = messages.filter((m) => m.to === agent.name && m.status === 'pending');

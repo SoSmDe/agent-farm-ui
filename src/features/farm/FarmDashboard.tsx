@@ -124,7 +124,7 @@ function ConnectionIndicator({ connected }: { connected: boolean }) {
 // ── Dashboard ─────────────────────────────────────────────────────────
 
 export function FarmDashboard() {
-  const { agents, recentMessages, stats, loading, error, connected, lastUpdated, retry, agentMessageCounts } = useFarmData();
+  const { agents, recentMessages, stats, loading, error, connected, lastUpdated, retry, agentMessageCounts, paused, setPaused } = useFarmData();
   const { theme, setTheme } = useSettings();
   const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
   const [selectedAgent, setSelectedAgent] = useState<FarmAgent | null>(null);
@@ -369,6 +369,14 @@ export function FarmDashboard() {
           <span className="text-[0.55rem] text-muted-foreground/25 font-mono">{recentMessages.length} msgs</span>
           <span className="text-[0.55rem] text-muted-foreground/15">|</span>
           <span className="text-[0.55rem] text-muted-foreground/20 cursor-help" title="Press ? for keyboard shortcuts">? shortcuts</span>
+          <span className="text-[0.55rem] text-muted-foreground/15">|</span>
+          <button
+            onClick={() => setPaused(!paused)}
+            className={`text-[0.55rem] px-1.5 py-0.5 rounded transition-colors ${paused ? 'text-orange bg-orange/10' : 'text-muted-foreground/20 hover:text-muted-foreground/40'}`}
+            title={paused ? "Resume auto-refresh" : "Pause auto-refresh"}
+          >
+            {paused ? "\u25B6 Resume" : "\u23F8 Pause"}
+          </button>
         </div>
         <span className="text-[0.55rem] text-muted-foreground/30 font-mono">
           {timeAgo}
