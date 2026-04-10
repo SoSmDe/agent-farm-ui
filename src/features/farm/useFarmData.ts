@@ -227,3 +227,16 @@ export function useFarmData(): UseFarmDataReturn {
 
   return { agents, recentMessages, stats, loading, error, connected, lastUpdated, retry: fetchState, agentMessageCounts };
 }
+
+// ── Shared agent color utility ──────────────────────────────────────
+
+const AGENT_COLORS = [
+  "#7fc782", "#e79a59", "#6ba3e0", "#c47fd0", "#e06c66",
+  "#5dc4b8", "#d4a843", "#8b8be0", "#e08888", "#6bc47f",
+];
+
+export function agentColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;
+  return AGENT_COLORS[Math.abs(hash) % AGENT_COLORS.length];
+}

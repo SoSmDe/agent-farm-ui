@@ -9,6 +9,7 @@
  */
 
 import { useMemo, useState, useCallback, useRef, useEffect } from "react";
+import { agentColor } from "./useFarmData";
 import type { FarmAgent, FarmMessage } from "./useFarmData";
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -472,9 +473,9 @@ export function OrgChart({ agents, messages, onSelectAgent, selectedAgentName, o
                 strokeWidth={isDragging ? 3.5 : isSelected ? 3 : isHovered ? 2.5 : 2}
                 opacity={agent.status === "offline" ? 0.5 : 1} />
 
-              {/* Inner ring */}
+              {/* Identity color ring */}
               <circle cx={pos.x} cy={pos.y} r={nodeR - 4}
-                fill="none" stroke={colors.fill} strokeWidth={0.5} opacity={0.3} />
+                fill="none" stroke={agentColor(agent.name)} strokeWidth={1.5} opacity={0.25} />
 
               {/* Monogram */}
               <text x={pos.x} y={pos.y - 6}

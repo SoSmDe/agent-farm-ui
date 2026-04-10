@@ -113,7 +113,7 @@ function ConnectionIndicator({ connected }: { connected: boolean }) {
           connected ? 'text-green/80' : 'text-red/80'
         }`}
       >
-        {connected ? 'Connected' : 'Disconnected'}
+        {connected ? 'Live' : 'Offline'}
       </span>
     </div>
   );
