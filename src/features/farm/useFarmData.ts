@@ -13,6 +13,7 @@ export interface FarmAgent {
   id: string;
   name: string;
   role: string;
+  type?: 'persistent' | 'ephemeral';
   status: 'idle' | 'busy' | 'offline';
   last_seen: string; // ISO timestamp
 }

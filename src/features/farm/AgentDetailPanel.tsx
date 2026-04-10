@@ -662,6 +662,7 @@ export function AgentDetailPanel({ agent, messages, onClose }: AgentDetailPanelP
             </span>
           </div>
           <p className="text-[0.8rem] text-muted-foreground truncate">{agent.role || 'No role specified'}</p>
+          {agent.type && (<span className="text-[0.55rem] text-muted-foreground/30 border border-border/20 rounded px-1.5 py-0.5 uppercase tracking-wider font-mono">{agent.type}</span>)}
         </div>
         <button onClick={onClose} className="shrink-0 p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors">
           <X size={18} />
