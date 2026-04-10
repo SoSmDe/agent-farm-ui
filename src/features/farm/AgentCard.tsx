@@ -173,6 +173,19 @@ export function AgentCard({ agent, messageCounts, recentMessages }: AgentCardPro
   const activityData = useAgentActivityBuckets(agent.name, recentMessages);
   const hasActivity = activityData.some((v) => v > 0);
 
+  // Last message preview
+  const lastMessage = useMemo(() => {
+    if (!recentMessages) return null;
+    for (const msg of recentMessages) {
+      if (msg.from === agent.name || msg.to === agent.name) {
+        const prefix = msg.from === agent.name ? "" : msg.from + ": ";
+        const text = prefix + (msg.content || "");
+        return text.length > 60 ? text.slice(0, 57) + "..." : text;
+      }
+    }
+    return null;
+  }, [agent.name, recentMessages]);
+
   return (
     <Card
       className={`group relative py-3 gap-2 transition-all duration-300 hover:translate-y-[-1px] ${cfg.cardBorder} ${cfg.cardOpacity}`}

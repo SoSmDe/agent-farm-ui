@@ -332,9 +332,15 @@ export function FarmDashboard() {
       )}
 
       {/* Footer */}
-      <div className="shrink-0 px-6 pb-3 flex justify-end">
-        <span className="text-[0.625rem] text-muted-foreground/40 uppercase tracking-widest">
-          Last updated: {timeAgo}
+      <div className="shrink-0 px-6 pb-3 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="text-[0.55rem] text-muted-foreground/25 font-mono">{agents.length} agents</span>
+          <span className="text-[0.55rem] text-muted-foreground/25 font-mono">{recentMessages.length} msgs</span>
+          <span className="text-[0.55rem] text-muted-foreground/15">|</span>
+          <span className="text-[0.55rem] text-muted-foreground/20 cursor-help" title="Press ? for keyboard shortcuts">? shortcuts</span>
+        </div>
+        <span className="text-[0.55rem] text-muted-foreground/30 font-mono">
+          {timeAgo}
         </span>
       </div>
 
