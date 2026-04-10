@@ -7,7 +7,7 @@
  */
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { X, ArrowRight, User, MessageSquare, FolderOpen, Clock, Activity, Mail, FileText, Loader2, Search, Filter, GitBranch, List, Copy, Check } from 'lucide-react';
+import { X, ArrowRight, User, MessageSquare, FolderOpen, Clock, Activity, Mail, FileText, Loader2, Search, Filter, GitBranch, List, Copy, Check, Download } from 'lucide-react';
 import type { FarmAgent, FarmMessage } from './useFarmData';
 
 // ── Copy to clipboard hook ────────────────────────────────────────
@@ -589,7 +589,28 @@ function AgentMessagesTab({ agentName }: { agentName: string }) {
           {viewMode === 'threads' && ` \u00B7 ${threads.length} thread${threads.length !== 1 ? 's' : ''}`}
           {(searchQuery || partnerFilter !== 'all') && ` (filtered from ${messages.length})`}
         </span>
-        <button onClick={loadMessages} className="text-[0.667rem] text-primary hover:text-primary/80 transition-colors">Refresh</button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              const text = filtered.map((m) =>
+                "[" + new Date(m.created_at).toLocaleString() + "] " + m.from_agent + " -> " + m.to_agent + ":\n" + m.message
+              ).join("\n\n---\n\n");
+              const blob = new Blob([text], { type: "text/plain" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = agentName + "-messages.txt";
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="text-[0.667rem] text-muted-foreground/40 hover:text-muted-foreground transition-colors flex items-center gap-1"
+            title="Export as text"
+          >
+            <Download size={11} />
+            Export
+          </button>
+          <button onClick={loadMessages} className="text-[0.667rem] text-primary hover:text-primary/80 transition-colors">Refresh</button>
+        </div>
       </div>
     </div>
   );

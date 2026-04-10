@@ -16,6 +16,7 @@ import { OrgChart } from './OrgChart';
 import { AgentDetailPanel } from './AgentDetailPanel';
 import { Timeline } from "./Timeline";
 import { SystemHealth } from "./SystemHealth";
+import { ErrorBoundary } from "./ErrorBoundary";
 import { EdgeConversation } from "./EdgeConversation";
 import { Search } from "lucide-react";
 import type { FarmAgent } from './useFarmData';
@@ -306,11 +307,11 @@ export function FarmDashboard() {
       )}
 
       {activeTab === 'agents' && (
-        <AgentDetails
+        <ErrorBoundary label="Agents"><AgentDetails
           agents={agents}
           messages={recentMessages}
           onSelectAgent={handleSelectAgent}
-        />
+        /></ErrorBoundary>
       )}
 
       {activeTab === 'org' && (
@@ -324,11 +325,11 @@ export function FarmDashboard() {
       )}
 
       {activeTab === 'timeline' && (
-        <Timeline
+        <ErrorBoundary label="Timeline"><Timeline
           messages={recentMessages}
           agents={agents}
           onSelectAgent={handleSelectAgent}
-        />
+        /></ErrorBoundary>
       )}
 
       {/* Footer */}
