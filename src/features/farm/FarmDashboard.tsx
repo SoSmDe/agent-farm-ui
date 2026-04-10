@@ -48,7 +48,7 @@ function useTimeAgo(timestamp: number | null): string {
 function LoadingSkeleton() {
   return (
     <div className="flex flex-col h-full min-h-0 bg-background">
-      <div className="shrink-0 px-6 pt-5 pb-3 flex items-center justify-between">
+      <div className="shrink-0 px-3 sm:px-6 pt-4 sm:pt-5 pb-2 sm:pb-3 flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-3">
           <span className="animate-pulse text-primary text-lg">&#x25C6;</span>
           <div className="h-5 w-24 bg-muted/50 rounded animate-pulse" />
@@ -62,7 +62,7 @@ function LoadingSkeleton() {
           ))}
         </div>
       </div>
-      <div className="flex-1 min-h-0 px-6 pb-6 grid grid-cols-1 lg:grid-cols-[1fr_1.2fr] gap-4">
+      <div className="flex-1 min-h-0 px-3 sm:px-6 pb-4 sm:pb-6 grid grid-cols-1 lg:grid-cols-[1fr_1.2fr] gap-3 sm:gap-4">
         <div className="bg-muted/20 rounded-lg animate-pulse" />
         <div className="bg-muted/20 rounded-lg animate-pulse" />
       </div>
@@ -200,7 +200,7 @@ export function FarmDashboard() {
   return (
     <div className="flex flex-col h-full min-h-0 bg-background">
       {/* Header */}
-      <div className="shrink-0 px-6 pt-5 pb-3 flex items-center justify-between">
+      <div className="shrink-0 px-3 sm:px-6 pt-4 sm:pt-5 pb-2 sm:pb-3 flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-3">
           <span className="text-primary text-lg">&#x25C6;</span>
           <h1 className="text-lg font-bold text-foreground tracking-tight">
@@ -249,7 +249,7 @@ export function FarmDashboard() {
       </div>
 
       {/* Tab switcher */}
-      <div className="shrink-0 px-6 pb-3 flex items-center gap-1">
+      <div className="shrink-0 px-3 sm:px-6 pb-2 sm:pb-3 flex items-center gap-1 overflow-x-auto">
         {TAB_LABELS.map(({ key, label }) => (
           <button
             key={key}
@@ -283,10 +283,10 @@ export function FarmDashboard() {
 
       {activeTab === 'overview' && (
         <>
-          <div className="shrink-0 px-6 pb-4">
+          <div className="shrink-0 px-3 sm:px-6 pb-3 sm:pb-4">
             <FarmStats stats={stats} recentMessages={recentMessages} />
           </div>
-          <div className="flex-1 min-h-0 px-6 pb-6 grid grid-cols-1 lg:grid-cols-[1fr_1.2fr] gap-4">
+          <div className="flex-1 min-h-0 px-3 sm:px-6 pb-4 sm:pb-6 grid grid-cols-1 lg:grid-cols-[1fr_1.2fr] gap-3 sm:gap-4">
             {/* Agents grid — cards are clickable */}
             <Card className="flex flex-col min-h-0">
               <CardHeader className="border-b border-border/40">
@@ -363,7 +363,7 @@ export function FarmDashboard() {
       )}
 
       {/* Footer */}
-      <div className="shrink-0 px-6 pb-3 flex items-center justify-between">
+      <div className="shrink-0 px-3 sm:px-6 pb-2 sm:pb-3 flex items-center justify-between flex-wrap gap-1">
         <div className="flex items-center gap-3">
           <span className="text-[0.55rem] text-muted-foreground/25 font-mono">{agents.length} agents</span>
           <span className="text-[0.55rem] text-muted-foreground/25 font-mono">{recentMessages.length} msgs</span>
