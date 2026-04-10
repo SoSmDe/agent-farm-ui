@@ -30,6 +30,49 @@ function relativeTime(iso: string): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
+// ── Activity mini chart ───────────────────────────────────────────
+
+function ActivityMiniChart({ agentName, messages }: { agentName: string; messages: FarmMessage[] }) {
+  const buckets = useMemo(() => {
+    const result = new Array(12).fill(0);
+    const now = Date.now();
+    const span = 12 * 60 * 60 * 1000;
+    const bucketSize = span / 12;
+    for (const msg of messages) {
+      if (msg.from !== agentName && msg.to !== agentName) continue;
+      const ts = new Date(msg.timestamp).getTime();
+      if (Number.isNaN(ts)) continue;
+      const age = now - ts;
+      if (age < 0 || age > span) continue;
+      const idx = 11 - Math.floor(age / bucketSize);
+      if (idx >= 0 && idx < 12) result[idx]++;
+    }
+    return result;
+  }, [agentName, messages]);
+
+  const max = Math.max(1, ...buckets);
+  const hasActivity = buckets.some((v) => v > 0);
+  if (!hasActivity) return null;
+
+  return (
+    <div className="mt-3 pt-3 border-t border-border/30">
+      <div className="flex items-center gap-2 mb-1.5">
+        <span className="text-[0.6rem] uppercase tracking-widest text-muted-foreground/40">12h activity</span>
+      </div>
+      <svg viewBox="0 0 120 20" className="w-full h-5" preserveAspectRatio="none">
+        {buckets.map((val, i) => {
+          const barH = (val / max) * 18;
+          const opacity = val === 0 ? 0.06 : 0.15 + (val / max) * 0.6;
+          return (
+            <rect key={i} x={i * 10 + 0.5} y={20 - barH} width={9} height={Math.max(barH, 1)} rx={1}
+              fill="currentColor" className="text-primary" opacity={opacity} />
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
 // ── Communication matrix ─────────────────────────────────────────────
 
 function CommMatrix({ agents, messages }: { agents: FarmAgent[]; messages: FarmMessage[] }) {
@@ -203,6 +246,9 @@ export function AgentDetails({ agents, messages, onSelectAgent }: AgentDetailsPr
                       ))}
                     </div>
                   )}
+
+                  {/* Activity chart */}
+                  <ActivityMiniChart agentName={agent.name} messages={messages} />
                 </div>
               </div>
             </CardContent>

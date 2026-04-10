@@ -56,30 +56,42 @@ function defaultCircularLayout(names: string[], cx: number, cy: number, radius: 
   return map;
 }
 
-function treeLayout(names: string[], W: number, H: number): Map<string, Pos> {
+function treeLayout(names: string[], W: number, H: number, messages?: FarmMessage[]): Map<string, Pos> {
   const map = new Map<string, Pos>();
   if (names.length === 0) return map;
 
-  // First agent is the "root" at top center, rest branch below
-  const root = names[0];
-  map.set(root, { x: W / 2, y: 60 });
+  // Find root: agent with most total messages (hub of communication)
+  let sortedNames = [...names];
+  if (messages && messages.length > 0) {
+    const msgCount = new Map<string, number>();
+    for (const msg of messages) {
+      if (!msg.from || !msg.to) continue;
+      msgCount.set(msg.from, (msgCount.get(msg.from) ?? 0) + 1);
+      msgCount.set(msg.to, (msgCount.get(msg.to) ?? 0) + 1);
+    }
+    sortedNames.sort((a, b) => (msgCount.get(b) ?? 0) - (msgCount.get(a) ?? 0));
+  }
 
-  const children = names.slice(1);
+  const root = sortedNames[0];
+  map.set(root, { x: W / 2, y: 70 });
+
+  const children = sortedNames.slice(1);
   if (children.length === 0) return map;
 
-  // Arrange children in rows of up to 3
-  const perRow = Math.min(3, children.length);
+  // Single row if ≤4, two rows otherwise
+  const perRow = children.length <= 4 ? children.length : Math.ceil(children.length / 2);
   const rows = Math.ceil(children.length / perRow);
-  const rowHeight = Math.min(120, (H - 120) / rows);
+  const rowHeight = Math.min(140, (H - 140) / rows);
+  const colSpacing = Math.min(180, (W - 80) / perRow);
 
   children.forEach((name, i) => {
     const row = Math.floor(i / perRow);
     const col = i % perRow;
     const rowCount = Math.min(perRow, children.length - row * perRow);
-    const startX = W / 2 - ((rowCount - 1) * 160) / 2;
+    const startX = W / 2 - ((rowCount - 1) * colSpacing) / 2;
     map.set(name, {
-      x: startX + col * 160,
-      y: 140 + row * rowHeight,
+      x: startX + col * colSpacing,
+      y: 160 + row * rowHeight,
     });
   });
   return map;
@@ -105,9 +117,9 @@ function gridLayout(names: string[], W: number, H: number): Map<string, Pos> {
   return map;
 }
 
-function getDefaultLayout(type: LayoutType, names: string[], W: number, H: number, radius: number): Map<string, Pos> {
+function getDefaultLayout(type: LayoutType, names: string[], W: number, H: number, radius: number, messages?: FarmMessage[]): Map<string, Pos> {
   switch (type) {
-    case "tree": return treeLayout(names, W, H);
+    case "tree": return treeLayout(names, W, H, messages);
     case "grid": return gridLayout(names, W, H);
     default: return defaultCircularLayout(names, W / 2, H / 2, radius);
   }
@@ -159,7 +171,7 @@ export function OrgChart({ agents, messages, onSelectAgent, selectedAgentName, o
   // Initialize positions: saved positions + defaults for new agents
   const [positions, setPositions] = useState<Map<string, Pos>>(() => {
     const saved = loadSavedPositions();
-    const defaults = getDefaultLayout(layoutType, agents.map((a) => a.name), W, H, radius);
+    const defaults = getDefaultLayout(layoutType, agents.map((a) => a.name), W, H, radius, messages);
     const merged = new Map<string, Pos>();
     for (const agent of agents) {
       if (saved[agent.name]) {
@@ -174,7 +186,7 @@ export function OrgChart({ agents, messages, onSelectAgent, selectedAgentName, o
   // Update positions when agents change
   useEffect(() => {
     setPositions((prev) => {
-      const defaults = getDefaultLayout(layoutType, agents.map((a) => a.name), W, H, radius);
+      const defaults = getDefaultLayout(layoutType, agents.map((a) => a.name), W, H, radius, messages);
       const next = new Map(prev);
       let changed = false;
       for (const agent of agents) {
@@ -191,7 +203,7 @@ export function OrgChart({ agents, messages, onSelectAgent, selectedAgentName, o
   const switchLayout = useCallback((type: LayoutType) => {
     setLayoutType(type);
     localStorage.setItem(LAYOUT_KEY, type);
-    const newPositions = getDefaultLayout(type, agents.map((a) => a.name), W, H, radius);
+    const newPositions = getDefaultLayout(type, agents.map((a) => a.name), W, H, radius, messages);
     setPositions(newPositions);
     localStorage.removeItem(STORAGE_KEY);
   }, [agents, W, H, radius]);
@@ -276,7 +288,7 @@ export function OrgChart({ agents, messages, onSelectAgent, selectedAgentName, o
   }, [dragAgent, positions]);
 
   const resetLayout = useCallback(() => {
-    const defaults = getDefaultLayout(layoutType, agents.map((a) => a.name), W, H, radius);
+    const defaults = getDefaultLayout(layoutType, agents.map((a) => a.name), W, H, radius, messages);
     setPositions(defaults);
     localStorage.removeItem(STORAGE_KEY);
   }, [agents, layoutType, W, H, radius]);
