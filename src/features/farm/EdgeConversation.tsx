@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { X, ArrowRight, Loader2 } from "lucide-react";
+import { X, ArrowRight, Loader2, Copy, Check } from "lucide-react";
 
 interface BusMessage {
   id: number;
@@ -37,6 +37,27 @@ function agentColor(name: string): string {
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;
   return AGENT_COLORS[Math.abs(hash) % AGENT_COLORS.length];
+}
+
+function CopyAllButton({ messages }: { messages: BusMessage[] }) {
+  const [copied, setCopied] = useState(false);
+  const copyAll = () => {
+    const text = messages.map((m) =>
+      "[" + new Date(m.created_at).toLocaleTimeString() + "] " + m.from_agent + " -> " + m.to_agent + ": " + m.message
+    ).join("\n\n");
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+  return (
+    <button onClick={copyAll}
+      className="inline-flex items-center gap-1 text-[0.6rem] text-muted-foreground/40 hover:text-muted-foreground px-1.5 py-0.5 rounded border border-border/20 hover:border-border/40 transition-colors"
+    >
+      {copied ? <Check size={10} className="text-green" /> : <Copy size={10} />}
+      <span>{copied ? "Copied" : "Copy all"}</span>
+    </button>
+  );
 }
 
 export function EdgeConversation({ agentA, agentB, onClose }: EdgeConversationProps) {
@@ -103,6 +124,7 @@ export function EdgeConversation({ agentA, agentB, onClose }: EdgeConversationPr
           <span className="text-[0.667rem] text-muted-foreground/40 ml-2">
             {messages.length} messages
           </span>
+          {messages.length > 0 && <CopyAllButton messages={messages} />}
           <button onClick={onClose} className="ml-auto p-1 rounded text-muted-foreground hover:text-foreground transition-colors">
             <X size={16} />
           </button>

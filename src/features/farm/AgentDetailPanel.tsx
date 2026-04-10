@@ -7,8 +7,37 @@
  */
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { X, ArrowRight, User, MessageSquare, FolderOpen, Clock, Activity, Mail, FileText, Loader2, Search, Filter, GitBranch, List } from 'lucide-react';
+import { X, ArrowRight, User, MessageSquare, FolderOpen, Clock, Activity, Mail, FileText, Loader2, Search, Filter, GitBranch, List, Copy, Check } from 'lucide-react';
 import type { FarmAgent, FarmMessage } from './useFarmData';
+
+// ── Copy to clipboard hook ────────────────────────────────────────
+
+function useCopyToClipboard() {
+  const [copied, setCopied] = useState(false);
+  const copy = useCallback((text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {});
+  }, []);
+  return { copied, copy };
+}
+
+// ── Copy button component ─────────────────────────────────────────
+
+function CopyButton({ text, label }: { text: string; label?: string }) {
+  const { copied, copy } = useCopyToClipboard();
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); copy(text); }}
+      className="inline-flex items-center gap-1 text-[0.6rem] text-muted-foreground/40 hover:text-muted-foreground px-1.5 py-0.5 rounded border border-border/20 hover:border-border/40 transition-colors"
+      title="Copy to clipboard"
+    >
+      {copied ? <Check size={10} className="text-green" /> : <Copy size={10} />}
+      {label && <span>{label}</span>}
+    </button>
+  );
+}
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -230,7 +259,10 @@ function AgentFilesTab({ agentName }: { agentName: string }) {
         <div className="flex flex-col h-full">
           <div className="shrink-0 flex items-center gap-2 px-4 py-2 border-b border-border/30">
             <button onClick={() => { setSelectedFile(null); setFileContent(null); }} className="text-[0.733rem] text-primary hover:text-primary/80 transition-colors">&larr; Back</button>
-            <span className="text-[0.8rem] font-medium text-foreground">{selectedFile}</span>
+            <span className="text-[0.8rem] font-medium text-foreground flex-1">{selectedFile}</span>
+            {fileContent && (
+              <CopyButton text={fileContent} />
+            )}
           </div>
           <div className="flex-1 overflow-y-auto p-4">
             {fileLoading ? (
@@ -430,7 +462,7 @@ function AgentMessagesTab({ agentName }: { agentName: string }) {
             {filtered.map((msg) => {
               const isOutgoing = msg.from_agent === agentName;
               return (
-                <div key={msg.id} className={`px-4 py-2.5 transition-colors hover:bg-foreground/[0.02] ${isOutgoing ? '' : ''}`}>
+                <div key={msg.id} className={`px-4 py-2.5 transition-colors hover:bg-foreground/[0.02] group ${isOutgoing ? '' : ''}`}>
                   <div className="flex items-center gap-2 mb-0.5">
                     <div className={`flex items-center gap-1 text-[0.7rem] font-mono ${isOutgoing ? 'flex-row' : 'flex-row'}`}>
                       <span className={`inline-block size-1.5 rounded-full ${isOutgoing ? 'bg-green/60' : 'bg-info/60'}`} />
@@ -448,9 +480,14 @@ function AgentMessagesTab({ agentName }: { agentName: string }) {
                       : 'bg-green/10 text-green/60 border-green/15'
                     }`}>{msg.status}</span>
                   </div>
-                  <p className={`text-[0.8rem] whitespace-pre-wrap break-words leading-relaxed ${isOutgoing ? 'text-foreground/80 pl-4 border-l-2 border-green/20' : 'text-foreground/90 pl-4 border-l-2 border-info/20'}`}>
-                    {msg.message}
-                  </p>
+                  <div className={`flex items-start gap-1 ${isOutgoing ? 'pl-4 border-l-2 border-green/20' : 'pl-4 border-l-2 border-info/20'}`}>
+                    <p className={`text-[0.8rem] whitespace-pre-wrap break-words leading-relaxed flex-1 ${isOutgoing ? 'text-foreground/80' : 'text-foreground/90'}`}>
+                      {msg.message}
+                    </p>
+                    <span className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5">
+                      <CopyButton text={msg.message} />
+                    </span>
+                  </div>
                 </div>
               );
             })}
