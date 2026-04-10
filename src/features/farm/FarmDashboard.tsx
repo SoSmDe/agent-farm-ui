@@ -8,6 +8,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { useFarmData } from './useFarmData';
+import { useSettings } from '@/contexts/SettingsContext';
 import { AgentCard } from './AgentCard';
 import { MessageFeed } from './MessageFeed';
 import { FarmStats } from './FarmStats';
@@ -124,6 +125,7 @@ function ConnectionIndicator({ connected }: { connected: boolean }) {
 
 export function FarmDashboard() {
   const { agents, recentMessages, stats, loading, error, connected, lastUpdated, retry, agentMessageCounts } = useFarmData();
+  const { theme, setTheme } = useSettings();
   const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
   const [selectedAgent, setSelectedAgent] = useState<FarmAgent | null>(null);
   const [quickSearchOpen, setQuickSearchOpen] = useState(false);
@@ -205,6 +207,14 @@ export function FarmDashboard() {
               );
             })()}
           </div>
+          {/* Theme toggle */}
+          <button
+            onClick={() => setTheme(theme === 'light' ? 'ayu-dark' : 'light')}
+            className="hidden sm:flex items-center justify-center size-7 text-muted-foreground/40 hover:text-muted-foreground border border-border/30 rounded-md hover:border-border/50 transition-colors"
+            title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+          >
+            {theme === 'light' ? '☾' : '☀'}
+          </button>
           {/* Cmd+K hint */}
           <button
             onClick={() => { setQuickSearchOpen(true); setQuickSearchQuery(""); }}
