@@ -239,6 +239,21 @@ export function OrgChart({ agents, messages, onSelectAgent, selectedAgentName, o
     return stats;
   }, [messages]);
 
+  // Last message between each pair (for edge tooltip)
+  const lastMsgBetween = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const msg of messages) {
+      if (!msg.from || !msg.to || !msg.content) continue;
+      if (msg.from.startsWith("tg-") || msg.to.startsWith("tg-")) continue;
+      const key = [msg.from, msg.to].sort().join("::");
+      if (!map.has(key)) {
+        const text = msg.content.length > 40 ? msg.content.slice(0, 37) + "..." : msg.content;
+        map.set(key, text);
+      }
+    }
+    return map;
+  }, [messages]);
+
   const maxEdgeCount = Math.max(1, ...edges.map((e) => e.total));
 
   // Last message per agent (for tooltip)
@@ -443,6 +458,24 @@ export function OrgChart({ agents, messages, onSelectAgent, selectedAgentName, o
                   ))}
                 </>
               )}
+              {/* Edge topic on hover */}
+              {isHighlighted && (() => {
+                const key = [edge.from, edge.to].sort().join("::");
+                const topic = lastMsgBetween.get(key);
+                if (!topic) return null;
+                const labelW = Math.min(topic.length * 5.5 + 16, 200);
+                return (
+                  <g>
+                    <rect x={ctrlX - labelW / 2} y={ctrlY + 12} width={labelW} height={16} rx={4}
+                      fill="var(--background)" stroke="currentColor" className="text-border"
+                      strokeWidth={0.5} opacity={0.9} />
+                    <text x={ctrlX} y={ctrlY + 22} textAnchor="middle" dominantBaseline="central"
+                      className="fill-foreground/50" fontSize={7} fontStyle="italic">
+                      {topic}
+                    </text>
+                  </g>
+                );
+              })()}
               {/* Edge count badge */}
               {(isHighlighted || edge.total >= 3) && (
                 <g>
