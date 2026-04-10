@@ -374,6 +374,7 @@ export function OrgChart({ agents, messages, onSelectAgent, selectedAgentName, o
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerUp}
         onWheel={handleWheel}
+        onDoubleClick={() => setZoom(1)}
       >
         <defs>
           {edges.map((edge) => {
