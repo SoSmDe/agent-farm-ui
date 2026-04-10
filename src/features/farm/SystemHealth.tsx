@@ -5,6 +5,7 @@
 
 import { useMemo } from "react";
 import { Users, Zap, Database, TrendingUp } from "lucide-react";
+import { agentColor } from "./useFarmData";
 import type { FarmAgent, FarmMessage, FarmStats } from "./useFarmData";
 
 interface SystemHealthProps {
@@ -113,6 +114,26 @@ export function SystemHealth({ agents, messages, stats }: SystemHealthProps) {
             {completionRate}%
           </span>
           <span className="text-[0.6rem] text-muted-foreground/40 mb-0.5">completion</span>
+        </div>
+      </div>
+    {/* Agent status bar */}
+      <div className="mt-2 rounded-xl border border-border/30 bg-card/30 p-3">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-[0.6rem] text-muted-foreground/40 uppercase tracking-wider">Agent Status</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          {agents.map((agent) => {
+            const color = agentColor(agent.name);
+            const statusOpacity = agent.status === "offline" ? 0.2 : agent.status === "busy" ? 0.9 : 0.6;
+            return (
+              <div key={agent.name} className="flex-1 relative group cursor-default" title={agent.name + " (" + agent.status + ")"}>
+                <div className="h-6 rounded-md transition-all group-hover:h-8" style={{ backgroundColor: color, opacity: statusOpacity }} />
+                <span className="absolute inset-0 flex items-center justify-center text-[0.55rem] font-bold text-white/80 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                  {agent.name}
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
