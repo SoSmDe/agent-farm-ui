@@ -8,6 +8,7 @@
 import { useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { MessageSquare } from 'lucide-react';
+import { agentEmoji } from './useFarmData';
 import type { FarmAgent, FarmMessage, AgentMessageCounts } from './useFarmData';
 
 // ── Status config ────────────────────────────────────────────────────
@@ -151,8 +152,8 @@ function AvatarMonogram({ name, status }: { name: string; status: string }) {
   const colorClass = AVATAR_COLORS[status] ?? AVATAR_COLORS.offline;
 
   return (
-    <div className={`shrink-0 flex items-center justify-center size-10 rounded-full border text-sm font-bold ${colorClass}`}>
-      {letter}
+    <div className={`shrink-0 flex items-center justify-center size-10 rounded-full border text-sm font-bold ${colorClass}`} title={name}>
+      {agentEmoji(status === 'offline' ? undefined : undefined) ? letter : letter}
     </div>
   );
 }
@@ -199,7 +200,7 @@ export function AgentCard({ agent, messageCounts, recentMessages }: AgentCardPro
           {/* Row 1: Name + status */}
           <div className="flex items-center justify-between gap-2">
             <span className="text-sm font-bold text-foreground truncate">
-              {agent.name}
+              <span className="mr-1">{agentEmoji(agent.role)}</span>{agent.name}
             </span>
             <div className="flex items-center gap-1.5 shrink-0">
               <StatusDot animation={cfg.animation} dotClass={cfg.dot} glowClass={cfg.glow} />

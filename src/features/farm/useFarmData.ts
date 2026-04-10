@@ -241,3 +241,27 @@ export function agentColor(name: string): string {
   for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;
   return AGENT_COLORS[Math.abs(hash) % AGENT_COLORS.length];
 }
+
+// ── Agent role emoji ────────────────────────────────────────────────
+
+const ROLE_EMOJIS: Record<string, string> = {
+  main: "\u{1F451}",      // crown
+  code: "\u{1F4BB}",      // laptop
+  data: "\u{1F4CA}",      // chart
+  research: "\u{1F50D}",  // magnifier
+  finance: "\u{1F4B0}",   // money bag
+  trading: "\u{1F4C8}",   // chart up
+  etf: "\u{1F3E6}",       // bank
+  exchanges: "\u{1F504}", // arrows
+  security: "\u{1F6E1}",  // shield
+  ops: "\u{2699}",        // gear
+};
+
+export function agentEmoji(role: string | null | undefined): string {
+  if (!role) return "\u{1F916}"; // robot
+  const lower = role.toLowerCase();
+  for (const [key, emoji] of Object.entries(ROLE_EMOJIS)) {
+    if (lower.includes(key)) return emoji;
+  }
+  return "\u{1F916}"; // default robot
+}

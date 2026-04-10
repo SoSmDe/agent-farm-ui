@@ -9,7 +9,7 @@
  */
 
 import { useMemo, useState, useCallback, useRef, useEffect } from "react";
-import { agentColor } from "./useFarmData";
+import { agentColor, agentEmoji } from "./useFarmData";
 import type { FarmAgent, FarmMessage } from "./useFarmData";
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -518,23 +518,24 @@ export function OrgChart({ agents, messages, onSelectAgent, selectedAgentName, o
               <circle cx={pos.x} cy={pos.y} r={nodeR - 4}
                 fill="none" stroke={agentColor(agent.name)} strokeWidth={1.5} opacity={0.25} />
 
-              {/* Monogram */}
-              <text x={pos.x} y={pos.y - 6}
+              {/* Emoji + Monogram */}
+              <text x={pos.x} y={pos.y - 10}
                 textAnchor="middle" dominantBaseline="central"
-                className="fill-foreground font-bold select-none pointer-events-none"
-                fontSize={isSelected ? 22 : 20}
+                className="select-none pointer-events-none"
+                fontSize={12}
               >
-                {agent.name.charAt(0).toUpperCase()}
+                {agentEmoji(agent.role)}
               </text>
-
-              {/* Name */}
-              <text x={pos.x} y={pos.y + 10}
-                textAnchor="middle"
+              <text x={pos.x} y={pos.y + 6}
+                textAnchor="middle" dominantBaseline="central"
                 className="fill-foreground/70 font-medium select-none pointer-events-none"
-                fontSize={9}
+                fontSize={10}
               >
                 {agent.name}
               </text>
+
+              {/* Name */}
+
 
               {/* Role below */}
               <text x={pos.x} y={pos.y + nodeR + 14}
