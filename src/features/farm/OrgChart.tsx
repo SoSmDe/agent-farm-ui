@@ -417,6 +417,22 @@ export function OrgChart({ agents, messages, onSelectAgent, selectedAgentName, o
                 opacity={opacity}
                 strokeLinecap="round"
               />
+              {/* Flow particles on highlighted edges */}
+              {isHighlighted && edge.total > 0 && (
+                <>
+                  {[0, 0.33, 0.66].map((offset, pi) => (
+                    <circle key={pi} r={2.5} fill={`url(#grad-${edge.from}-${edge.to})`} opacity={0.7}>
+                      <animateMotion
+                        dur={`${2 + pi * 0.5}s`}
+                        begin={`${offset * 2}s`}
+                        repeatCount="indefinite"
+                        path={`M ${fromPos.x} ${fromPos.y} Q ${ctrlX} ${ctrlY} ${toPos.x} ${toPos.y}`}
+                      />
+                    </circle>
+                  ))}
+                </>
+              )}
+              {/* Edge count badge */}
               {(isHighlighted || edge.total >= 3) && (
                 <g>
                   <rect
