@@ -241,6 +241,21 @@ export function OrgChart({ agents, messages, onSelectAgent, selectedAgentName, o
 
   const maxEdgeCount = Math.max(1, ...edges.map((e) => e.total));
 
+  // Last message per agent (for tooltip)
+  const lastMsgMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const msg of messages) {
+      if (!msg.from || !msg.to) continue;
+      for (const name of [msg.from, msg.to]) {
+        if (!map.has(name) && msg.content) {
+          const text = msg.content.length > 50 ? msg.content.slice(0, 47) + "..." : msg.content;
+          map.set(name, text);
+        }
+      }
+    }
+    return map;
+  }, [messages]);
+
   // ── Drag handlers ─────────────────────────────────────────────────
 
   const svgPoint = useCallback((clientX: number, clientY: number): Pos => {
@@ -528,19 +543,44 @@ export function OrgChart({ agents, messages, onSelectAgent, selectedAgentName, o
                 </g>
               )}
 
-              {/* Hover tooltip */}
-              {isHovered && !isDragging && stats && (
+              {/* Rich hover tooltip */}
+              {isHovered && !isDragging && (
                 <g>
-                  <rect x={pos.x - 45} y={pos.y + nodeR + 24}
-                    width={90} height={22} rx={6}
-                    fill="var(--background)" stroke="currentColor"
-                    className="text-border" strokeWidth={0.5} />
-                  <text x={pos.x} y={pos.y + nodeR + 37}
-                    textAnchor="middle" className="fill-muted-foreground"
-                    fontSize={8} fontFamily="monospace"
-                  >
-                    {"\u2191"}{stats.sent} {"\u2193"}{stats.received}
-                  </text>
+                  {(() => {
+                    const tooltipW = 160;
+                    const tooltipH = stats ? 52 : 30;
+                    const tx = pos.x - tooltipW / 2;
+                    const ty = pos.y + nodeR + 20;
+                    const lastMsg = lastMsgMap.get(agent.name);
+                    return (
+                      <>
+                        <rect x={tx} y={ty} width={tooltipW} height={lastMsg ? tooltipH + 16 : tooltipH}
+                          rx={8} fill="var(--background)" stroke="currentColor"
+                          className="text-border" strokeWidth={0.5}
+                          style={{ filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.15))" }} />
+                        {/* Stats line */}
+                        {stats && (
+                          <text x={pos.x} y={ty + 14} textAnchor="middle"
+                            className="fill-muted-foreground" fontSize={8} fontFamily="monospace">
+                            {"\u2191"}{stats.sent} sent {"\u00B7"} {"\u2193"}{stats.received} recv
+                            {stats.pending > 0 && ` \u00B7 ${stats.pending} pending`}
+                          </text>
+                        )}
+                        {/* Role */}
+                        <text x={pos.x} y={ty + (stats ? 30 : 14)} textAnchor="middle"
+                          className="fill-muted-foreground/60" fontSize={8}>
+                          {agent.role || "agent"}
+                        </text>
+                        {/* Last message */}
+                        {lastMsg && (
+                          <text x={pos.x} y={ty + (stats ? 44 : 28)} textAnchor="middle"
+                            className="fill-foreground/50" fontSize={7} fontStyle="italic">
+                            {lastMsg}
+                          </text>
+                        )}
+                      </>
+                    );
+                  })()}
                 </g>
               )}
             </g>
