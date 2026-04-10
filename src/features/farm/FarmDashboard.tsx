@@ -5,7 +5,7 @@
  * Clicking an agent card opens a detail panel with info/messages/files.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { useFarmData } from './useFarmData';
 import { useSettings } from '@/contexts/SettingsContext';
