@@ -63,6 +63,23 @@ interface TimelineGroup {
   messages: FarmMessage[];
 }
 
+
+// ── Text highlight ──────────────────────────────────────────────────
+
+function HighlightText({ text, query }: { text: string; query: string }) {
+  if (!query.trim()) return <>{text}</>;
+  const parts = text.split(new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi"));
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.toLowerCase() === query.toLowerCase()
+          ? <mark key={i} className="bg-primary/20 text-foreground rounded-sm px-0.5">{part}</mark>
+          : part
+      )}
+    </>
+  );
+}
+
 // ── Component ───────────────────────────────────────────────────────
 
 export function Timeline({ messages, agents, onSelectAgent }: TimelineProps) {
@@ -267,7 +284,7 @@ export function Timeline({ messages, agents, onSelectAgent }: TimelineProps) {
 
                         {/* Content */}
                         <p className="text-[0.8rem] text-foreground/80 leading-relaxed line-clamp-3 group-hover:line-clamp-none transition-all">
-                          {msg.content}
+                          {textSearch ? <HighlightText text={msg.content || ""} query={textSearch} /> : msg.content}
                         </p>
                       </div>
                     );

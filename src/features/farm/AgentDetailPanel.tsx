@@ -39,6 +39,25 @@ function CopyButton({ text, label }: { text: string; label?: string }) {
   );
 }
 
+
+// ── Text highlight ──────────────────────────────────────────────────
+
+function HighlightText({ text, query }: { text: string; query: string }) {
+  if (!query.trim()) return <>{text}</>;
+  try {
+    const parts = text.split(new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi"));
+    return (
+      <>
+        {parts.map((part, i) =>
+          part.toLowerCase() === query.toLowerCase()
+            ? <mark key={i} className="bg-primary/20 text-foreground rounded-sm px-0.5">{part}</mark>
+            : part
+        )}
+      </>
+    );
+  } catch { return <>{text}</>; }
+}
+
 // ── Types ────────────────────────────────────────────────────────────
 
 interface AgentDetailPanelProps {
@@ -482,7 +501,7 @@ function AgentMessagesTab({ agentName }: { agentName: string }) {
                   </div>
                   <div className={`flex items-start gap-1 ${isOutgoing ? 'pl-4 border-l-2 border-green/20' : 'pl-4 border-l-2 border-info/20'}`}>
                     <p className={`text-[0.8rem] whitespace-pre-wrap break-words leading-relaxed flex-1 ${isOutgoing ? 'text-foreground/80' : 'text-foreground/90'}`}>
-                      {msg.message}
+                      {searchQuery ? <HighlightText text={msg.message} query={searchQuery} /> : msg.message}
                     </p>
                     <span className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5">
                       <CopyButton text={msg.message} />
