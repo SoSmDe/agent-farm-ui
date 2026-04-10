@@ -7,7 +7,7 @@
  */
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { X, ArrowRight, User, MessageSquare, FolderOpen, Clock, Activity, Mail, FileText, Loader2, Search, Filter, GitBranch, List, Copy, Check, Download } from 'lucide-react';
+import { X, ArrowRight, User, MessageSquare, FolderOpen, Clock, Activity, Mail, FileText, Loader2, Search, Filter, GitBranch, List, Copy, Check, Download, StickyNote, Pin } from 'lucide-react';
 import type { FarmAgent, FarmMessage } from './useFarmData';
 
 // ── Copy to clipboard hook ────────────────────────────────────────
@@ -616,6 +616,74 @@ function AgentMessagesTab({ agentName }: { agentName: string }) {
   );
 }
 
+
+// ── Agent Notes ─────────────────────────────────────────────────
+
+const NOTES_KEY = "agent-farm-notes";
+
+function loadNotes(): Record<string, string> {
+  try {
+    return JSON.parse(localStorage.getItem(NOTES_KEY) || "{}");
+  } catch { return {}; }
+}
+
+function saveNote(agentName: string, note: string) {
+  const notes = loadNotes();
+  if (note.trim()) notes[agentName] = note;
+  else delete notes[agentName];
+  localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
+}
+
+function AgentNotesSection({ agentName }: { agentName: string }) {
+  const [editing, setEditing] = useState(false);
+  const [note, setNote] = useState(() => loadNotes()[agentName] || "");
+  const [saved, setSaved] = useState(false);
+
+  const handleSave = () => {
+    saveNote(agentName, note);
+    setEditing(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  return (
+    <div className="rounded-lg border border-border/30 bg-card/30 px-4 py-3">
+      <div className="flex items-center gap-2 mb-2">
+        <StickyNote size={12} className="text-primary/50" />
+        <p className="text-[0.667rem] uppercase tracking-widest text-muted-foreground/50">Notes</p>
+        {!editing && (
+          <button onClick={() => setEditing(true)} className="ml-auto text-[0.6rem] text-primary/50 hover:text-primary transition-colors">
+            {note ? "Edit" : "Add note"}
+          </button>
+        )}
+        {saved && <span className="ml-auto text-[0.6rem] text-green">Saved</span>}
+      </div>
+      {editing ? (
+        <div className="space-y-2">
+          <textarea
+            autoFocus
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Add notes about this agent..."
+            className="w-full text-[0.8rem] text-foreground bg-muted/20 rounded-md border border-border/30 px-3 py-2 focus:outline-none focus:border-primary/40 resize-none"
+            rows={3}
+          />
+          <div className="flex gap-2 justify-end">
+            <button onClick={() => { setEditing(false); setNote(loadNotes()[agentName] || ""); }}
+              className="text-[0.667rem] text-muted-foreground hover:text-foreground px-2 py-1 rounded transition-colors">Cancel</button>
+            <button onClick={handleSave}
+              className="text-[0.667rem] text-primary-foreground bg-primary hover:bg-primary/90 px-3 py-1 rounded transition-colors">Save</button>
+          </div>
+        </div>
+      ) : note ? (
+        <p className="text-[0.8rem] text-foreground/70 whitespace-pre-wrap leading-relaxed">{note}</p>
+      ) : (
+        <p className="text-[0.733rem] text-muted-foreground/30 italic">No notes</p>
+      )}
+    </div>
+  );
+}
+
 // ── Communication Partners ──────────────────────────────────────
 
 interface CommPartner {
@@ -750,6 +818,9 @@ export function AgentDetailPanel({ agent, messages, onClose }: AgentDetailPanelP
                 </div>
               </div>
             )}
+
+            {/* Notes */}
+            <AgentNotesSection agentName={agent.name} />
           </div>
         )}
 

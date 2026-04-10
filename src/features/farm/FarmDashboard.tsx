@@ -131,6 +131,26 @@ export function FarmDashboard() {
   const [quickSearchOpen, setQuickSearchOpen] = useState(false);
   const [quickSearchQuery, setQuickSearchQuery] = useState("");
   const [orgFullscreen, setOrgFullscreen] = useState(false);
+  const [pinnedAgents, setPinnedAgents] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem("agent-farm-pins") || "[]")); } catch { return new Set(); }
+  });
+  const togglePin = useCallback((name: string) => {
+    setPinnedAgents((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name); else next.add(name);
+      localStorage.setItem("agent-farm-pins", JSON.stringify([...next]));
+      return next;
+    });
+  }, []);
+
+  // Sort agents: pinned first
+  const sortedAgents = useMemo(() => {
+    return [...agents].sort((a, b) => {
+      const ap = pinnedAgents.has(a.name) ? 0 : 1;
+      const bp = pinnedAgents.has(b.name) ? 0 : 1;
+      return ap - bp;
+    });
+  }, [agents, pinnedAgents]);
   const [edgeConversation, setEdgeConversation] = useState<{ a: string; b: string } | null>(null);
 
   const timeAgo = useTimeAgo(lastUpdated);
@@ -285,7 +305,7 @@ export function FarmDashboard() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
-                    {agents.map((agent) => (
+                    {sortedAgents.map((agent) => (
                       <div key={agent.id} onClick={() => handleSelectAgent(agent)} className="cursor-pointer">
                         <AgentCard
                           agent={agent}
