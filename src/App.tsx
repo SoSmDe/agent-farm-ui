@@ -407,21 +407,7 @@ export default function App({ onLogout }: AppProps) {
         </button>
       )}
 
-      {(!isCompactLayout || !isMobileTopBarHidden) && (
-        <TopBar
-          onSettings={openSettings}
-          agentLogEntries={agentLogEntries}
-          tokenData={tokenData}
-          logGlow={logGlow}
-          eventEntries={eventEntries}
-          eventsVisible={eventsVisible}
-          logVisible={logVisible}
-          mobilePanelButtonsVisible={isCompactLayout}
-          sessionsPanel={compactSessionsPanel}
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
-        />
-      )}
+      {/* TopBar removed — Agent Farm dashboard has its own header */}
 
       <PanelErrorBoundary name="Settings">
         <Suspense fallback={null}>

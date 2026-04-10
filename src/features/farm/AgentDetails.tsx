@@ -1,10 +1,12 @@
 /**
- * AgentDetails — Detailed view of all agents with their roles and responsibilities.
+ * AgentDetails — Detailed view of all agents with roles, stats, and comm matrix.
+ * Cards are clickable to open the detail panel.
  */
 
+import { useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import type { FarmAgent, FarmMessage } from './useFarmData';
-import { MessageSquare, Clock, Activity } from 'lucide-react';
+import { MessageSquare, Clock, Activity, ArrowRight } from 'lucide-react';
 
 // ── Status config ────────────────────────────────────────────────────
 
@@ -28,14 +30,89 @@ function relativeTime(iso: string): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
+// ── Communication matrix ─────────────────────────────────────────────
+
+function CommMatrix({ agents, messages }: { agents: FarmAgent[]; messages: FarmMessage[] }) {
+  const matrix = useMemo(() => {
+    const names = agents.map((a) => a.name);
+    const counts = new Map<string, number>();
+    for (const msg of messages) {
+      if (!msg.from || !msg.to) continue;
+      if (msg.from.startsWith('tg-') || msg.to.startsWith('tg-')) continue;
+      if (!names.includes(msg.from) || !names.includes(msg.to)) continue;
+      const key = `${msg.from}::${msg.to}`;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return { names, counts };
+  }, [agents, messages]);
+
+  if (matrix.names.length === 0) return null;
+
+  const maxCount = Math.max(1, ...matrix.counts.values());
+
+  return (
+    <div className="rounded-xl border border-border/40 bg-card/30 p-4">
+      <p className="text-[0.667rem] uppercase tracking-widest text-muted-foreground/50 mb-3">
+        Communication Matrix
+      </p>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[0.7rem]">
+          <thead>
+            <tr>
+              <th className="text-left font-normal text-muted-foreground/40 pb-2 pr-3">From \ To</th>
+              {matrix.names.map((name) => (
+                <th key={name} className="text-center font-semibold text-foreground/70 pb-2 px-2 min-w-[50px]">
+                  {name.slice(0, 5)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {matrix.names.map((from) => (
+              <tr key={from}>
+                <td className="font-semibold text-foreground/70 py-1.5 pr-3">{from}</td>
+                {matrix.names.map((to) => {
+                  const count = matrix.counts.get(`${from}::${to}`) ?? 0;
+                  const intensity = count / maxCount;
+                  const isSelf = from === to;
+                  return (
+                    <td key={to} className="text-center py-1.5 px-2">
+                      {isSelf ? (
+                        <span className="text-muted-foreground/15">-</span>
+                      ) : count === 0 ? (
+                        <span className="text-muted-foreground/15">0</span>
+                      ) : (
+                        <span
+                          className="inline-flex items-center justify-center min-w-[24px] h-5 rounded-md text-[0.65rem] font-bold"
+                          style={{
+                            backgroundColor: `rgba(99, 163, 224, ${0.1 + intensity * 0.5})`,
+                            color: intensity > 0.5 ? '#fff' : 'rgba(99,163,224,0.9)',
+                          }}
+                        >
+                          {count}
+                        </span>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // ── Component ────────────────────────────────────────────────────────
 
 interface AgentDetailsProps {
   agents: FarmAgent[];
   messages: FarmMessage[];
+  onSelectAgent?: (agent: FarmAgent) => void;
 }
 
-export function AgentDetails({ agents, messages }: AgentDetailsProps) {
+export function AgentDetails({ agents, messages, onSelectAgent }: AgentDetailsProps) {
   if (agents.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center text-muted-foreground/50 text-[0.733rem]">
@@ -46,14 +123,33 @@ export function AgentDetails({ agents, messages }: AgentDetailsProps) {
 
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-4">
+      {/* Communication matrix */}
+      <CommMatrix agents={agents} messages={messages} />
+
+      {/* Agent cards */}
       {agents.map((agent) => {
         const cfg = STATUS_CONFIG[agent.status] ?? STATUS_CONFIG.offline;
         const agentMessages = messages.filter((m) => m.to === agent.name || m.from === agent.name);
         const pendingInbox = messages.filter((m) => m.to === agent.name && m.status === 'pending');
         const sentCount = messages.filter((m) => m.from === agent.name).length;
 
+        // Top communication partners
+        const partnerCounts = new Map<string, number>();
+        for (const msg of agentMessages) {
+          const partner = msg.from === agent.name ? msg.to : msg.from;
+          if (!partner || partner.startsWith('tg-')) continue;
+          partnerCounts.set(partner, (partnerCounts.get(partner) ?? 0) + 1);
+        }
+        const topPartners = [...partnerCounts.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 3);
+
         return (
-          <Card key={agent.id} className={`border ${cfg.bg} transition-all duration-300`}>
+          <Card
+            key={agent.id}
+            className={`border ${cfg.bg} transition-all duration-300 cursor-pointer hover:translate-y-[-1px] hover:shadow-lg`}
+            onClick={() => onSelectAgent?.(agent)}
+          >
             <CardContent className="p-5">
               <div className="flex items-start gap-4">
                 {/* Avatar */}
@@ -85,7 +181,7 @@ export function AgentDetails({ agents, messages }: AgentDetailsProps) {
                       <Activity size={12} />
                       <span>{sentCount} sent</span>
                     </div>
-                    <div className="flex items-center gap-1.5" title="Total messages involving this agent">
+                    <div className="flex items-center gap-1.5" title="Total messages">
                       <MessageSquare size={12} />
                       <span>{agentMessages.length} total</span>
                     </div>
@@ -95,22 +191,16 @@ export function AgentDetails({ agents, messages }: AgentDetailsProps) {
                     </div>
                   </div>
 
-                  {/* Recent messages for this agent */}
-                  {agentMessages.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-border/30">
-                      <p className="text-[0.667rem] uppercase tracking-widest text-muted-foreground/50 mb-2">
-                        Recent activity
-                      </p>
-                      <div className="space-y-1">
-                        {agentMessages.slice(0, 3).map((msg) => (
-                          <div key={msg.id} className="flex items-center gap-2 text-[0.7rem] text-muted-foreground">
-                            <span className="font-mono text-foreground/70">{msg.from}</span>
-                            <span className="text-muted-foreground/30">&rarr;</span>
-                            <span className="font-mono text-foreground/70">{msg.to}</span>
-                            <span className="truncate flex-1 text-muted-foreground/60">{msg.content}</span>
-                          </div>
-                        ))}
-                      </div>
+                  {/* Top partners */}
+                  {topPartners.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-border/30 flex items-center gap-3 flex-wrap">
+                      <span className="text-[0.6rem] uppercase tracking-widest text-muted-foreground/40">Talks to:</span>
+                      {topPartners.map(([name, count]) => (
+                        <span key={name} className="inline-flex items-center gap-1 text-[0.7rem] text-foreground/70 bg-foreground/5 rounded-full px-2 py-0.5">
+                          <span className="font-semibold">{name}</span>
+                          <span className="text-muted-foreground/40">({count})</span>
+                        </span>
+                      ))}
                     </div>
                   )}
                 </div>

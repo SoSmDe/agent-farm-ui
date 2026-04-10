@@ -55,6 +55,36 @@ interface UseFarmDataReturn extends FarmState {
 }
 
 const EMPTY_STATS: FarmStats = { total: 0, pending: 0, delivered: 0, done: 0 };
+
+// Hermes agents don't send heartbeats when idle, so the bus marks them
+// "offline" after 5 min. For persistent agents seen in the last 2 hours,
+// treat "offline" as "idle" — they're available, just sleeping.
+const IDLE_THRESHOLD_MS = 2 * 60 * 60 * 1000; // 2 hours
+
+function normalizeMessage(m: any): FarmMessage {
+  return {
+    id: m.id,
+    from: m.from_agent ?? m.from,
+    to: m.to_agent ?? m.to,
+    content: m.message ?? m.content,
+    timestamp: m.created_at ?? m.timestamp,
+    status: m.status,
+    priority: m.priority ?? 0,
+  };
+}
+function normalizeAgentStatus(agents: any[]): FarmAgent[] {
+  const now = Date.now();
+  return agents.map((a) => {
+    let status: FarmAgent['status'] = a.status;
+    if (status === 'offline' && a.type === 'persistent') {
+      const lastSeen = new Date(a.last_seen).getTime();
+      if (now - lastSeen < IDLE_THRESHOLD_MS) {
+        status = 'idle';
+      }
+    }
+    return { ...a, status };
+  });
+}
 const POLL_INTERVAL = 3000;
 
 export function useFarmData(): UseFarmDataReturn {
@@ -76,7 +106,7 @@ export function useFarmData(): UseFarmDataReturn {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const raw = await res.json();
-      setAgents(raw.agents ?? []);
+      setAgents(normalizeAgentStatus(raw.agents ?? []));
       setRecentMessages(
         (raw.recentMessages ?? []).map((m: any) => ({
           id: m.id,
@@ -119,8 +149,8 @@ export function useFarmData(): UseFarmDataReturn {
       es.addEventListener('state', (e: MessageEvent) => {
         try {
           const data: FarmState = JSON.parse(e.data);
-          setAgents(data.agents ?? []);
-          setRecentMessages(data.recentMessages ?? []);
+          setAgents(normalizeAgentStatus(data.agents ?? []));
+          setRecentMessages((data.recentMessages ?? []).map(normalizeMessage));
           setStats(data.stats ?? EMPTY_STATS);
           setError(null);
           setLastUpdated(Date.now());
@@ -131,7 +161,8 @@ export function useFarmData(): UseFarmDataReturn {
 
       es.addEventListener('agent', (e: MessageEvent) => {
         try {
-          const agent: FarmAgent = JSON.parse(e.data);
+          const raw = JSON.parse(e.data);
+          const [agent] = normalizeAgentStatus([raw]);
           setAgents((prev) => {
             const idx = prev.findIndex((a) => a.id === agent.id);
             if (idx >= 0) {
@@ -148,7 +179,7 @@ export function useFarmData(): UseFarmDataReturn {
 
       es.addEventListener('message', (e: MessageEvent) => {
         try {
-          const msg: FarmMessage = JSON.parse(e.data);
+          const msg: FarmMessage = normalizeMessage(JSON.parse(e.data));
           setRecentMessages((prev) => [msg, ...prev].slice(0, 100));
         } catch {
           // Ignore

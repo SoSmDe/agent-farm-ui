@@ -3,15 +3,22 @@
  *
  * Thin wrapper around fetch for calling the Agent Farm bus/dashboard/admin
  * endpoints. Base URL comes from FARM_API_URL env var (default localhost:3000).
+ * Admin token from FARM_ADMIN_TOKEN env var is injected server-side for
+ * protected /admin/* endpoints.
  * @module
  */
 
-import { config } from './config.js';
+import { config } from "./config.js";
+
+function authHeaders(token?: string): Record<string, string> {
+  const t = token || config.farmAdminToken;
+  return t ? { Authorization: `Bearer ${t}` } : {};
+}
 
 export async function farmGet(path: string, token?: string) {
-  const headers: Record<string, string> = {};
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-  const res = await fetch(`${config.farmApiUrl}${path}`, { headers });
+  const res = await fetch(`${config.farmApiUrl}${path}`, {
+    headers: { ...authHeaders(token) },
+  });
   if (!res.ok) {
     throw new Error(`Farm API ${path} returned ${res.status}`);
   }
@@ -19,11 +26,9 @@ export async function farmGet(path: string, token?: string) {
 }
 
 export async function farmPost(path: string, body: unknown, token?: string) {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
   const res = await fetch(`${config.farmApiUrl}${path}`, {
-    method: 'POST',
-    headers,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders(token) },
     body: JSON.stringify(body),
   });
   if (!res.ok) {
@@ -36,9 +41,9 @@ export async function farmPost(path: string, body: unknown, token?: string) {
  * Open an SSE connection to the Farm API and return the raw Response
  * so the caller can pipe its body to the client.
  */
-export async function farmSSE(path: string): Promise<Response> {
+export async function farmSSE(path: string, token?: string): Promise<Response> {
   const res = await fetch(`${config.farmApiUrl}${path}`, {
-    headers: { Accept: 'text/event-stream' },
+    headers: { Accept: "text/event-stream", ...authHeaders(token) },
   });
   if (!res.ok) {
     throw new Error(`Farm SSE ${path} returned ${res.status}`);

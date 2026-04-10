@@ -1,20 +1,26 @@
 /**
  * FarmDashboard — Main Agent Farm mission control dashboard.
  *
- * Shows agent cards grid, message feed, and stats bar.
- * Fetches from /api/farm/state (polling) + /api/farm/events (SSE).
+ * Tabs: Overview | Agents | Org Chart
+ * Clicking an agent card opens a detail panel with info/messages/files.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { useFarmData } from './useFarmData';
 import { AgentCard } from './AgentCard';
 import { MessageFeed } from './MessageFeed';
 import { FarmStats } from './FarmStats';
 import { AgentDetails } from './AgentDetails';
-import { SetupPanel } from './SetupPanel';
+import { OrgChart } from './OrgChart';
+import { AgentDetailPanel } from './AgentDetailPanel';
+import { Timeline } from "./Timeline";
+import { SystemHealth } from "./SystemHealth";
+import { EdgeConversation } from "./EdgeConversation";
+import { Search } from "lucide-react";
+import type { FarmAgent } from './useFarmData';
 
-type DashboardTab = 'overview' | 'agents';
+type DashboardTab = 'overview' | 'agents' | 'org' | 'timeline';
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -40,7 +46,6 @@ function useTimeAgo(timestamp: number | null): string {
 function LoadingSkeleton() {
   return (
     <div className="flex flex-col h-full min-h-0 bg-background">
-      {/* Header skeleton */}
       <div className="shrink-0 px-6 pt-5 pb-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="animate-pulse text-primary text-lg">&#x25C6;</span>
@@ -48,8 +53,6 @@ function LoadingSkeleton() {
           <div className="h-3 w-28 bg-muted/30 rounded animate-pulse" />
         </div>
       </div>
-
-      {/* Stats skeleton */}
       <div className="shrink-0 px-6 pb-4">
         <div className="grid grid-cols-4 gap-3">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -57,8 +60,6 @@ function LoadingSkeleton() {
           ))}
         </div>
       </div>
-
-      {/* Content skeleton */}
       <div className="flex-1 min-h-0 px-6 pb-6 grid grid-cols-1 lg:grid-cols-[1fr_1.2fr] gap-4">
         <div className="bg-muted/20 rounded-lg animate-pulse" />
         <div className="bg-muted/20 rounded-lg animate-pulse" />
@@ -112,7 +113,7 @@ function ConnectionIndicator({ connected }: { connected: boolean }) {
           connected ? 'text-green/80' : 'text-red/80'
         }`}
       >
-        {connected ? 'Connected to Farm API' : 'API Unreachable'}
+        {connected ? 'Connected' : 'Disconnected'}
       </span>
     </div>
   );
@@ -122,20 +123,45 @@ function ConnectionIndicator({ connected }: { connected: boolean }) {
 
 export function FarmDashboard() {
   const { agents, recentMessages, stats, loading, error, connected, lastUpdated, retry, agentMessageCounts } = useFarmData();
-  const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
-  const [showSetup, setShowSetup] = useState(false);
+  const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
+  const [selectedAgent, setSelectedAgent] = useState<FarmAgent | null>(null);
+  const [quickSearchOpen, setQuickSearchOpen] = useState(false);
+  const [quickSearchQuery, setQuickSearchQuery] = useState("");
+  const [edgeConversation, setEdgeConversation] = useState<{ a: string; b: string } | null>(null);
 
   const timeAgo = useTimeAgo(lastUpdated);
 
-  // First load — show skeleton
-  if (loading) {
-    return <LoadingSkeleton />;
-  }
+  const handleSelectAgent = useCallback((agent: FarmAgent) => {
+    setSelectedAgent(agent);
+  }, []);
 
-  // Error with no data — show full-screen error
-  if (error && agents.length === 0) {
-    return <ErrorState error={error} onRetry={retry} />;
-  }
+  const handleSelectEdge = useCallback((a: string, b: string) => {
+    setEdgeConversation({ a, b });
+  }, []);
+
+  const handleClosePanel = useCallback(() => {
+    setSelectedAgent(null);
+  }, []);
+
+  // Close panel on Escape
+  useEffect(() => {
+    if (!selectedAgent) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') handleClosePanel();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [selectedAgent, handleClosePanel]);
+
+  if (loading) return <LoadingSkeleton />;
+  if (error && agents.length === 0) return <ErrorState error={error} onRetry={retry} />;
+
+  const TAB_LABELS: { key: DashboardTab; label: string }[] = [
+    { key: 'overview', label: 'Overview' },
+    { key: 'agents', label: 'Agents' },
+    { key: 'org', label: 'Org Chart' },
+    { key: 'timeline', label: 'Timeline' },
+  ];
 
   return (
     <div className="flex flex-col h-full min-h-0 bg-background">
@@ -152,29 +178,52 @@ export function FarmDashboard() {
         </div>
 
         <div className="flex items-center gap-3">
-          <button onClick={() => setShowSetup(true)} className="text-[0.667rem] text-muted-foreground/60 hover:text-muted-foreground uppercase tracking-widest transition-colors">Setup</button>
+          {/* Agent status pills */}
+          <div className="hidden md:flex items-center gap-1">
+            {(() => {
+              const idle = agents.filter((a) => a.status === "idle").length;
+              const busy = agents.filter((a) => a.status === "busy").length;
+              const offline = agents.filter((a) => a.status === "offline").length;
+              return (
+                <>
+                  {idle > 0 && <span className="text-[0.6rem] text-green/80 bg-green/10 rounded-full px-2 py-0.5 font-mono">{idle} ready</span>}
+                  {busy > 0 && <span className="text-[0.6rem] text-orange/80 bg-orange/10 rounded-full px-2 py-0.5 font-mono">{busy} busy</span>}
+                  {offline > 0 && <span className="text-[0.6rem] text-muted-foreground/50 bg-muted/30 rounded-full px-2 py-0.5 font-mono">{offline} off</span>}
+                </>
+              );
+            })()}
+          </div>
+          {/* Cmd+K hint */}
+          <button
+            onClick={() => { setQuickSearchOpen(true); setQuickSearchQuery(""); }}
+            className="hidden sm:flex items-center gap-1.5 text-[0.667rem] text-muted-foreground/30 border border-border/30 rounded-md px-2.5 py-1 hover:text-muted-foreground/50 hover:border-border/50 transition-colors"
+          >
+            <Search size={12} />
+            <span>Search</span>
+            <kbd className="text-[0.55rem] border border-border/20 rounded px-1 ml-1">⌘K</kbd>
+          </button>
           <ConnectionIndicator connected={connected} />
         </div>
       </div>
 
       {/* Tab switcher */}
       <div className="shrink-0 px-6 pb-3 flex items-center gap-1">
-        {(['overview', 'agents'] as const).map((tab) => (
+        {TAB_LABELS.map(({ key, label }) => (
           <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
+            key={key}
+            onClick={() => setActiveTab(key)}
             className={`px-3 py-1.5 rounded-md text-[0.733rem] font-medium uppercase tracking-wider transition-colors ${
-              activeTab === tab
+              activeTab === key
                 ? 'bg-foreground/10 text-foreground'
                 : 'text-muted-foreground/60 hover:text-muted-foreground hover:bg-foreground/5'
             }`}
           >
-            {tab === 'overview' ? 'Overview' : 'Agents'}
+            {label}
           </button>
         ))}
       </div>
 
-      {/* Inline error banner (when we have stale data but fetch failed) */}
+      {/* Inline error banner */}
       {error && agents.length > 0 && (
         <div className="shrink-0 mx-6 mb-3 flex items-center justify-between rounded-md border border-red/30 bg-red/10 px-3 py-2">
           <div className="flex items-center gap-1.5 text-[0.667rem] text-red">
@@ -190,18 +239,13 @@ export function FarmDashboard() {
         </div>
       )}
 
-      {showSetup && <SetupPanel onClose={() => setShowSetup(false)} />}
-
-      {activeTab === "overview" && (
+      {activeTab === 'overview' && (
         <>
-          {/* Stats bar */}
           <div className="shrink-0 px-6 pb-4">
             <FarmStats stats={stats} recentMessages={recentMessages} />
           </div>
-
-          {/* Main content: agents grid + message feed */}
           <div className="flex-1 min-h-0 px-6 pb-6 grid grid-cols-1 lg:grid-cols-[1fr_1.2fr] gap-4">
-            {/* Agents grid */}
+            {/* Agents grid — cards are clickable */}
             <Card className="flex flex-col min-h-0">
               <CardHeader className="border-b border-border/40">
                 <CardTitle className="flex items-center gap-2 text-sm">
@@ -220,14 +264,18 @@ export function FarmDashboard() {
                 ) : (
                   <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
                     {agents.map((agent) => (
-                      <AgentCard key={agent.id} agent={agent} messageCounts={agentMessageCounts[agent.name]} />
+                      <div key={agent.id} onClick={() => handleSelectAgent(agent)} className="cursor-pointer">
+                        <AgentCard
+                          agent={agent}
+                          messageCounts={agentMessageCounts[agent.name]}
+                          recentMessages={recentMessages}
+                        />
+                      </div>
                     ))}
                   </div>
                 )}
               </CardContent>
             </Card>
-
-            {/* Message feed */}
             <Card className="flex flex-col min-h-0">
               <CardHeader className="border-b border-border/40">
                 <CardTitle className="flex items-center gap-2 text-sm">
@@ -247,15 +295,102 @@ export function FarmDashboard() {
       )}
 
       {activeTab === 'agents' && (
-        <AgentDetails agents={agents} messages={recentMessages} />
+        <AgentDetails
+          agents={agents}
+          messages={recentMessages}
+          onSelectAgent={handleSelectAgent}
+        />
       )}
 
-      {/* Footer — last updated */}
+      {activeTab === 'org' && (
+        <OrgChart
+          agents={agents}
+          messages={recentMessages}
+          onSelectAgent={handleSelectAgent}
+          selectedAgentName={selectedAgent?.name ?? null}
+          onSelectEdge={handleSelectEdge}
+        />
+      )}
+
+      {activeTab === 'timeline' && (
+        <Timeline
+          messages={recentMessages}
+          agents={agents}
+          onSelectAgent={handleSelectAgent}
+        />
+      )}
+
+      {/* Footer */}
       <div className="shrink-0 px-6 pb-3 flex justify-end">
         <span className="text-[0.625rem] text-muted-foreground/40 uppercase tracking-widest">
           Last updated: {timeAgo}
         </span>
       </div>
+
+      {/* Edge Conversation Popover */}
+      {edgeConversation && (
+        <EdgeConversation
+          agentA={edgeConversation.a}
+          agentB={edgeConversation.b}
+          onClose={() => setEdgeConversation(null)}
+        />
+      )}
+
+      {/* Quick Search Modal (Cmd+K) */}
+      {quickSearchOpen && (
+        <>
+          <div className="fixed inset-0 z-[60] bg-black/30 backdrop-blur-sm" onClick={() => { setQuickSearchOpen(false); setQuickSearchQuery(""); }} />
+          <div className="fixed top-[20%] left-1/2 -translate-x-1/2 z-[70] w-full max-w-md bg-background border border-border rounded-xl shadow-2xl overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-border/40">
+              <Search size={16} className="text-muted-foreground/50 shrink-0" />
+              <input
+                autoFocus
+                type="text"
+                placeholder="Search agents..."
+                value={quickSearchQuery}
+                onChange={(e) => setQuickSearchQuery(e.target.value)}
+                className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none"
+              />
+              <kbd className="text-[0.6rem] text-muted-foreground/30 border border-border/30 rounded px-1.5 py-0.5">ESC</kbd>
+            </div>
+            <div className="max-h-64 overflow-y-auto">
+              {agents
+                .filter((a) => !quickSearchQuery || a.name.toLowerCase().includes(quickSearchQuery.toLowerCase()) || (a.role || "").toLowerCase().includes(quickSearchQuery.toLowerCase()))
+                .map((agent) => {
+                  const cfg = { idle: "bg-green", busy: "bg-orange", offline: "bg-red/60" }[agent.status] ?? "bg-red/60";
+                  return (
+                    <button
+                      key={agent.id}
+                      onClick={() => { handleSelectAgent(agent); setQuickSearchOpen(false); setQuickSearchQuery(""); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-foreground/5 transition-colors text-left"
+                    >
+                      <span className={"inline-block size-2 rounded-full " + cfg} />
+                      <span className="text-sm font-semibold text-foreground">{agent.name}</span>
+                      <span className="text-[0.733rem] text-muted-foreground/50 truncate flex-1">{agent.role || "agent"}</span>
+                    </button>
+                  );
+                })}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Agent Detail Panel (slide-out) */}
+      {selectedAgent && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm animate-in fade-in duration-200"
+            onClick={handleClosePanel}
+          />
+          <AgentDetailPanel
+            agent={selectedAgent}
+            messages={recentMessages}
+          onSelectAgent={handleSelectAgent}
+            onClose={handleClosePanel}
+          />
+        </>
+      )}
     </div>
   );
 }

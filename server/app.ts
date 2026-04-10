@@ -27,6 +27,7 @@ import eventsRoutes from './routes/events.js';
 import serverInfoRoutes from './routes/server-info.js';
 import versionRoutes from './routes/version.js';
 import farmDashboardRoutes from './routes/farm-dashboard.js';
+import agentFilesRoutes from './routes/agent-files.js';
 
 const app = new Hono();
 
@@ -64,7 +65,7 @@ app.use('*', cacheHeaders);
 
 const routes = [
   healthRoutes, authRoutes, eventsRoutes, serverInfoRoutes,
-  versionRoutes, farmDashboardRoutes,
+  versionRoutes, farmDashboardRoutes, agentFilesRoutes,
 ];
 for (const route of routes) app.route('/', route);
 

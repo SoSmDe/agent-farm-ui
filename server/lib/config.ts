@@ -68,6 +68,7 @@ export const config = {
 
   // Agent Farm API
   farmApiUrl: process.env.FARM_API_URL || 'http://localhost:3000',
+  farmAdminToken: process.env.FARM_ADMIN_TOKEN || '',
 
   // Gateway connection
   gatewayUrl: process.env.GATEWAY_URL || DEFAULT_GATEWAY_URL,
