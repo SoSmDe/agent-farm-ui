@@ -344,7 +344,7 @@ export function OrgChart({ agents, messages, onSelectAgent, selectedAgentName, o
           ))}
         </div>
         <span className="text-[0.55rem] text-muted-foreground/25 uppercase tracking-widest hidden lg:inline">
-          Drag | Zoom | Click edges
+          Drag | Scroll zoom | Dbl-click fit | Click edges
         </span>
         <div className="flex items-center gap-1 border border-border/30 rounded-md overflow-hidden">
           <button onClick={() => setZoom((z) => Math.max(0.4, z * 0.8))}
