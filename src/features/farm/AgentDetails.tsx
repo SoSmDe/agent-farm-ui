@@ -4,6 +4,7 @@
  */
 
 import { useMemo, useState } from 'react';
+import { ActivityHeatmap } from "./ActivityHeatmap";
 import { Card, CardContent } from '@/components/ui/card';
 import type { FarmAgent, FarmMessage } from './useFarmData';
 import { MessageSquare, Clock, Activity, ArrowRight } from 'lucide-react';
@@ -183,6 +184,9 @@ export function AgentDetails({ agents, messages, onSelectAgent }: AgentDetailsPr
     <div className="flex-1 overflow-y-auto p-6 space-y-4">
       {/* Communication matrix */}
       <CommMatrix agents={agents} messages={messages} />
+
+      {/* Activity heatmap */}
+      <ActivityHeatmap messages={messages} />
 
       {/* Sort controls */}
       <div className="flex items-center gap-2 mb-2">
