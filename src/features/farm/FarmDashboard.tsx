@@ -131,6 +131,16 @@ export function FarmDashboard() {
   const [edgeConversation, setEdgeConversation] = useState<{ a: string; b: string } | null>(null);
 
   const timeAgo = useTimeAgo(lastUpdated);
+  // Update browser tab title with pending count
+  useEffect(() => {
+    const pending = stats.pending;
+    document.title = pending > 0 ? "(" + pending + ") Agent Farm" : "Agent Farm";
+    return () => { document.title = "Agent Farm"; };
+  }, [stats.pending]);
+
+  // Shortcuts help modal
+  const [showShortcuts, setShowShortcuts] = useState(false);
+
 
   const handleSelectAgent = useCallback((agent: FarmAgent) => {
     setSelectedAgent(agent);
@@ -327,6 +337,30 @@ export function FarmDashboard() {
           Last updated: {timeAgo}
         </span>
       </div>
+
+      {/* Keyboard Shortcuts Help */}
+      {showShortcuts && (
+        <>
+          <div className="fixed inset-0 z-[80] bg-black/30 backdrop-blur-sm" onClick={() => setShowShortcuts(false)} />
+          <div className="fixed top-[15%] left-1/2 -translate-x-1/2 z-[81] w-full max-w-sm bg-background border border-border rounded-xl shadow-2xl p-5">
+            <h3 className="text-sm font-bold text-foreground mb-4">Keyboard Shortcuts</h3>
+            <div className="space-y-2">
+              {[
+                { keys: "Ctrl + K", desc: "Quick search agents" },
+                { keys: "?", desc: "Show this help" },
+                { keys: "Esc", desc: "Close panel / modal" },
+                { keys: "1-4", desc: "Switch tabs (Overview, Agents, Org, Timeline)" },
+              ].map(({ keys, desc }) => (
+                <div key={keys} className="flex items-center justify-between">
+                  <span className="text-[0.8rem] text-muted-foreground">{desc}</span>
+                  <kbd className="text-[0.667rem] text-foreground/70 bg-muted/40 border border-border/30 rounded px-2 py-0.5 font-mono">{keys}</kbd>
+                </div>
+              ))}
+            </div>
+            <p className="text-[0.6rem] text-muted-foreground/30 mt-4 text-center">Press ? or Esc to close</p>
+          </div>
+        </>
+      )}
 
       {/* Edge Conversation Popover */}
       {edgeConversation && (
