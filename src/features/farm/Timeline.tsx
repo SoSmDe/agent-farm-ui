@@ -222,9 +222,14 @@ export function Timeline({ messages, agents, onSelectAgent }: TimelineProps) {
       {/* Timeline content */}
       <div className="flex-1 overflow-y-auto min-h-0">
         {groups.length === 0 ? (
-          <div className="flex items-center justify-center h-48 text-muted-foreground/50 text-[0.733rem]">
-            <MessageSquare size={16} className="mr-2 opacity-50" />
-            No messages to display
+          <div className="flex flex-col items-center justify-center h-48 text-muted-foreground/50 gap-3">
+            <MessageSquare size={32} strokeWidth={1} className="opacity-30" />
+            <div className="text-center">
+              <p className="text-[0.8rem] font-medium">No messages yet</p>
+              <p className="text-[0.667rem] text-muted-foreground/30 mt-1">
+                {textSearch ? "Try a different search term" : "Messages will appear here as agents communicate"}
+              </p>
+            </div>
           </div>
         ) : (
           <div className="px-6 py-4">

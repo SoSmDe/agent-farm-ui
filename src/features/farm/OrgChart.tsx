@@ -311,8 +311,18 @@ export function OrgChart({ agents, messages, onSelectAgent, selectedAgentName, o
 
   if (agents.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center text-muted-foreground/50 text-[0.733rem]">
-        No agents to display
+      <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground/50 gap-3">
+        <svg viewBox="0 0 64 64" width="48" height="48" className="opacity-20">
+          <circle cx="32" cy="20" r="8" fill="none" stroke="currentColor" strokeWidth="2" />
+          <circle cx="16" cy="48" r="6" fill="none" stroke="currentColor" strokeWidth="2" />
+          <circle cx="48" cy="48" r="6" fill="none" stroke="currentColor" strokeWidth="2" />
+          <line x1="32" y1="28" x2="16" y2="42" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
+          <line x1="32" y1="28" x2="48" y2="42" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
+        </svg>
+        <div className="text-center">
+          <p className="text-[0.8rem] font-medium">No agents registered</p>
+          <p className="text-[0.667rem] text-muted-foreground/30 mt-1">Agents will appear here when they connect to the bus</p>
+        </div>
       </div>
     );
   }
